@@ -88,7 +88,7 @@ class TimingControlObj: #Contains all data for Timing Control
         byte_stream=byte_stream + [CB.prog, 0, 0, 0]
         data = bytes(byte_stream)
         return data
-    def return_timings(self):
+    def return_timings(self): #Calculate and return timings
         clock_f=10e6/self.clock_divider
         t_Rx=self.counter_Rx/clock_f
         t_Tx=self.counter_Tx/clock_f
