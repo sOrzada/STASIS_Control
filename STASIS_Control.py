@@ -7,7 +7,6 @@ from ft4222.SPIMaster import Mode, Clock, SlaveSelect
 from ft4222.GPIO import Port, Dir
 from time import sleep
 
-
 ##### Define Classes for different hardware modules #####
 class ControlByteObj: #Contains the control bits. Select the state and add for complete control byte
     chip0=0 #Important: Use only one chip at a time!
@@ -162,11 +161,11 @@ data_out_mod=Modulator.return_byte_stream()
 
 #quit()
 # open 'device' with default description 'FT4222 A'
-devA = ft4222.openByDescription('FT4222 A')
+#devA = ft4222.openByDescription('FT4222 A')
 # init spi master
-devA.spiMaster_Init(Mode.SINGLE, Clock.DIV_8, Cpha.CLK_LEADING, Cpol.IDLE_LOW, SlaveSelect.SS0)
+#devA.spiMaster_Init(Mode.SINGLE, Clock.DIV_8, Cpha.CLK_LEADING, Cpol.IDLE_LOW, SlaveSelect.SS0)
 
 enable_word=bytes([128,0,0,0])
 
 
-devA.spiMaster_SingleWrite(data_stream1+data_stream2+enable_word, True) #Write Data to SPI device.
+#devA.spiMaster_SingleWrite(data_stream1+data_stream2+enable_word, True) #Write Data to SPI device.
