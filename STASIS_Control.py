@@ -1,14 +1,41 @@
-# This script provides control over the STASIS hardware
-import ft4222 #Library for SPI device
+# Classes for Hardware Modules of STASIS system are defined here
 import math
 import numpy as np
-import configparser
+import ft4222
 from ft4222.SPI import Cpha, Cpol
 from ft4222.SPIMaster import Mode, Clock, SlaveSelect
-from ft4222.GPIO import Port, Dir
-from time import sleep
 
-##### Define Classes for different hardware modules #####
+class STASIS_SystemObj:
+    def __init__(self,config):
+        try:
+            if config['DEFAULT']['Signal_Source_module'] == 'true':
+                self.SignalSource = SignalSourceObj(config)
+        except:
+           pass
+
+        try:
+            if config['DEFAULT']['Timing_Control_module'] =='true':
+                self.TimingControl = TimingControlObj(config)
+        except:
+            pass
+
+        try:
+            if config['DEFAULT']['Modulator_Module'] == 'true':
+                self.Modulator = ModulatorObj(config)
+        except:
+            pass
+
+        try:
+            if config['DEFAULT']['USB2SPI_Module'] == 'true':
+                try:
+                    self.SPI = USB2SPIObj(config)
+                except:
+                    print('<p>Error accessing FT4222! Make sure to connect to USB.</p>')
+                    quit()
+        except:
+            pass
+
+
 class ControlByteObj: #Contains the control bits. Select the state and add for complete control byte. I introduced this for better readability of code.
     chip0=0 #Important: Use only one chip at a time!
     chip1=1
@@ -25,12 +52,28 @@ class ControlByteObj: #Contains the control bits. Select the state and add for c
     def chip(self,c): #Another option to define chip. 0-3
         return int(c)
 
+class USB2SPIObj: #Contains all data and methods for USB2SPI hardware. 
+    def __init__(self,config):
+        #Open device with default Name
+        self.devA = ft4222.openByDescription('FT4222 A')
+        #Configure Device for SPI (We allow different clock speeds according to config file)
+        if config['SPI_config']['clock_divider'] == '8':
+            self.devA.spiMaster_Init(Mode.SINGLE, Clock.DIV_8, Cpha.CLK_LEADING, Cpol.IDLE_LOW, SlaveSelect.SS0)
+        elif config['SPI_config']['clock_divider'] == '4':
+            self.devA.spiMaster_Init(Mode.SINGLE, Clock.DIV_4, Cpha.CLK_LEADING, Cpol.IDLE_LOW, SlaveSelect.SS0)
+        else:
+            self.devA.spiMaster_Init(Mode.SINGLE, Clock.DIV_16, Cpha.CLK_LEADING, Cpol.IDLE_LOW, SlaveSelect.SS0)
+    
+    def send_bitstream(self, bitstream): #Write bit stream. Input variable is actually a row of 4*N bytes.
+        self.devA.spiMaster_SingleWrite(bitstream, True)
+
+
 class SignalSourceObj: #Contains all data and methods for Signal Source Board
     #Attributes
     address = 0 #Standard address for Signal Source
     source = 0
     #Methods:
-    def __init__(self):
+    def __init__(self,config):
         self.address = int(config['DEFAULT']['signal_source_address'])
         pass
     def set_internal(self): #Internal RF signal source (128MHz)
@@ -38,7 +81,7 @@ class SignalSourceObj: #Contains all data and methods for Signal Source Board
     def set_external(self): #External RF signal source fed via SMA
         self.source = 0
     def return_byte_stream(self): #Return a byte stream ready to be transmitted via SPI
-        CB = ControlByteObj() #For improve readability use the object CB to gerenate the control bits.
+        CB = ControlByteObj() #For improved readability I use the object CB to gerenate the control bits.
         data = bytes([CB.prog, 0 , 0, 0,
                       CB.prog + CB.chip(0), self.address, 0, self.source,
                       CB.prog + CB.we + CB.chip(0), self.address, 0, self.source,
@@ -48,13 +91,13 @@ class SignalSourceObj: #Contains all data and methods for Signal Source Board
 
 class TimingControlObj: #Contains all data and methods for Timing Control
     #Attributes
-    con_mode = 1 #Continous Mode or intermittant mode (Tx/Rx)
-    mod_res_sel = 0 #Select whether to reset modulators via Tx/Rx (1) or their own counters (0)
+    con_mode = 0 #Continous Mode or intermittant mode (Tx/Rx)
+    mod_res_sel = 1 #Select whether to reset modulators via Tx/Rx (1) or their own counters (0)
     ubl_enable = 1 #Enable unblank
     clock_divider = 100 #Clock Divider for 10 MHz clock.
     counter_Rx = 9500 #Rx will last this many clock cycles
     counter_Tx = 500 #Tx will last this many clock cycles
-    def __init__(self):
+    def __init__(self,config):
         self.address = int(config['DEFAULT']['timing_control_address']) #Physical Address for TimingControl
     def set_continous_mode(self):
         self.con_mode = 1
@@ -99,17 +142,35 @@ class TimingControlObj: #Contains all data and methods for Timing Control
         print('Duty Cycle: ' + str(duty_cycle) + '%')
 
 class ModulatorObj: #Contains all data and methods for Modulators
-    def __init__(self):
+    def __init__(self,config):
         self.number_of_channels = int(config['DEFAULT']['number_of_channels']) #Number of modulators in system.
         self.start_address = int(config['DEFAULT']['start_channel']) #address of first modulator, others are counted upwards from here.
-        self.counter_max = [10] * self.number_of_channels #Maximum of value of counter in modulator. On this number, it switches back to 0
+        self.counter_max = [1] * self.number_of_channels #Maximum of value of counter in modulator. On this number, it switches back to 0
         self.I_values = [0] * self.number_of_channels #In phase value for Modulator
         self.Amp_state = [0] * self.number_of_channels #Amplifier state (high(1) and low(0) voltage)
         self.Q_values = [0] * self.number_of_channels #Quadrature value for Modulator
+        self.amplitudes = [200] *self.number_of_channels #Amplitudes of all channels
+        self.phases = [0] * self.number_of_channels #Phases of all channels
         for a in range(self.number_of_channels):
             self.I_values[a] = [pow(2,14)-1]*self.counter_max[a]
             self.Q_values[a] = [pow(2,13)-1]*self.counter_max[a]
             self.Amp_state[a] = [0]*self.counter_max[a]
+
+    def set_amplitudes_phases_state(self,amplitudes_in,phases_in,state_in):
+        self.amplitudes=amplitudes_in
+        self.phases=phases_in
+        self.I_values=[0]*self.number_of_channels
+        self.Q_values=[0]*self.number_of_channels
+        for a in range(self.number_of_channels):
+            self.counter_max[a]=len(amplitudes_in[a])
+            self.I_values[a]=[0]*self.counter_max[a]
+            self.Q_values[a]=[0]*self.counter_max[a]
+            self.Amp_state[a]=[0]*self.counter_max[a]
+            for b in range(len(amplitudes_in[a])):
+                self.I_values[a][b] = pow(2,13)-1 + amplitudes_in[a][b] * np.cos(phases_in[a][b]) #This is preliminary Code! Change later to account for amplitudes/calibration
+                self.Q_values[a][b] = pow(2,13)-1 + amplitudes_in[a][b] * np.sin(phases_in[a][b]) #This is preliminary Code! Change later to account for amplitude/calibration
+                self.Amp_state[a][b] = state_in[a][b]
+
 
     def return_byte_stream(self):
         CB = ControlByteObj() #For improve readability use the object CB to gerenate the control bits.
@@ -145,35 +206,3 @@ class ModulatorObj: #Contains all data and methods for Modulators
         byte_stream = byte_stream + [CB.prog, 0, 0, 0]
         data=bytes(byte_stream)    
         return data
-    
-###### Start Programm ######
-
-### Load Configuration file ###
-config=configparser.ConfigParser()
-config.read('stasis_control-1\STASIS_config.ini')
-
-
-print(str(ControlByteObj.chip0))
-SignalSource = SignalSourceObj()
-data_stream1 = SignalSource.return_byte_stream()
-#print(data_stream)
-
-TimingControl = TimingControlObj()
-data_stream2 = TimingControl.return_byte_stream()
-TimingControl.return_timings()
-#print(data_stream)
-
-Modulator = ModulatorObj()
-data_out_mod=Modulator.return_byte_stream()
-
-
-#quit()
-# open 'device' with default description 'FT4222 A'
-#devA = ft4222.openByDescription('FT4222 A')
-# init spi master
-#devA.spiMaster_Init(Mode.SINGLE, Clock.DIV_8, Cpha.CLK_LEADING, Cpol.IDLE_LOW, SlaveSelect.SS0)
-
-enable_word=bytes([128,0,0,0])
-
-
-#devA.spiMaster_SingleWrite(data_stream1+data_stream2+enable_word, True) #Write Data to SPI device.
