@@ -1,9 +1,11 @@
-# Classes for Hardware Modules of STASIS system are defined here
+# Classes for Hardware Modules of STASIS system are defined and initialized here.
 import math
 import numpy as np
 import ft4222
 from ft4222.SPI import Cpha, Cpol
 from ft4222.SPIMaster import Mode, Clock, SlaveSelect
+import os
+import configparser
 
 class STASIS_SystemObj:
     def __init__(self,config):
@@ -34,9 +36,18 @@ class STASIS_SystemObj:
                     quit()
         except:
             pass
+    def enable_system(self):
+        self.SPI.send_bitstream(bytes([128,0,0,0]))
+    def setup_system(self):
+        bytestream = self.TimingControl.return_byte_stream() + self.SignalSource.return_byte_stream() + self.Modulator.return_byte_stream()+ bytes([0,0,0,0])
+        self.SPI.send_bitstream(bytestream)    
+    def disable_system(self):
+        self.SPI.send_bitstream(bytes([0,0,0,0]))
+
 
 
 class ControlByteObj: #Contains the control bits. Select the state and add for complete control byte. I introduced this for better readability of code.
+    '''ControlByteObj'''
     chip0=0 #Important: Use only one chip at a time!
     chip1=1
     chip2=2
@@ -50,6 +61,7 @@ class ControlByteObj: #Contains the control bits. Select the state and add for c
     def __init__(self):
         pass
     def chip(self,c): #Another option to define chip. 0-3
+        '''chip(c) simply returns c.'''
         return int(c)
 
 class USB2SPIObj: #Contains all data and methods for USB2SPI hardware. 
@@ -92,11 +104,11 @@ class SignalSourceObj: #Contains all data and methods for Signal Source Board
 class TimingControlObj: #Contains all data and methods for Timing Control
     #Attributes
     con_mode = 0 #Continous Mode or intermittant mode (Tx/Rx)
-    mod_res_sel = 1 #Select whether to reset modulators via Tx/Rx (1) or their own counters (0)
+    mod_res_sel = 0 #Select whether to reset modulators via Tx/Rx (1) or their own counters (0)
     ubl_enable = 1 #Enable unblank
     clock_divider = 100 #Clock Divider for 10 MHz clock.
-    counter_Rx = 9500 #Rx will last this many clock cycles
-    counter_Tx = 500 #Tx will last this many clock cycles
+    counter_Rx = 255 #Rx will last this many clock cycles
+    counter_Tx = 255 #Tx will last this many clock cycles
     def __init__(self,config):
         self.address = int(config['DEFAULT']['timing_control_address']) #Physical Address for TimingControl
     def set_continous_mode(self):
@@ -106,9 +118,9 @@ class TimingControlObj: #Contains all data and methods for Timing Control
     def switch_off(self):
         self.ubl_enable = 0
     def switch_on(self):
-        self.ubl_enable = 1
+        self.ubl_enable = 0
     def return_byte_stream(self):
-        CB = ControlByteObj() #For improve readability use the object CB to gerenate the control bits.
+        CB = ControlByteObj() #For improved readability use the object CB to gerenate the control bits.
         byte_stream = [CB.prog, 0, 0, 0] #Initiate by setting system into write mode.
         for a in range(4): #Timing Control contains 4 registers.
             match a:
@@ -167,8 +179,8 @@ class ModulatorObj: #Contains all data and methods for Modulators
             self.Q_values[a]=[0]*self.counter_max[a]
             self.Amp_state[a]=[0]*self.counter_max[a]
             for b in range(len(amplitudes_in[a])):
-                self.I_values[a][b] = pow(2,13)-1 + amplitudes_in[a][b] * np.cos(phases_in[a][b]) #This is preliminary Code! Change later to account for amplitudes/calibration
-                self.Q_values[a][b] = pow(2,13)-1 + amplitudes_in[a][b] * np.sin(phases_in[a][b]) #This is preliminary Code! Change later to account for amplitude/calibration
+                self.I_values[a][b] = int(pow(2,13)-1 + amplitudes_in[a][b] * np.cos(phases_in[a][b])) #This is preliminary Code! Change later to account for amplitudes/calibration
+                self.Q_values[a][b] = int(pow(2,13)-1 + amplitudes_in[a][b] * np.sin(phases_in[a][b])) #This is preliminary Code! Change later to account for amplitude/calibration
                 self.Amp_state[a][b] = state_in[a][b]
 
 
@@ -206,3 +218,11 @@ class ModulatorObj: #Contains all data and methods for Modulators
         byte_stream = byte_stream + [CB.prog, 0, 0, 0]
         data=bytes(byte_stream)    
         return data
+
+config=configparser.ConfigParser()
+config.read(os.path.dirname(__file__) + '/STASIS_config.ini')
+
+### Instance Hardware Objects ##
+
+STASIS_System = STASIS_SystemObj(config)
+print('Initialized System')
