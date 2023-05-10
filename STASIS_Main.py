@@ -60,6 +60,7 @@ def start_main_GUI():
     TimingEntry[2].insert(0,str(STASIS_Control.STASIS_System.TimingControl.counter_Rx))
     ApplyTimingsButton.place(x=210, y=165)
     update_status_text()
+
     return MAINWINDOW
 
 def init_Menu(MainWindow): #Initialize the menu bar of main window.
@@ -87,12 +88,13 @@ def init_Menu(MainWindow): #Initialize the menu bar of main window.
 
 def on_closing():
     MAINWINDOW.destroy()
+    stop_system()
     quit()
 
 def clickOptionsButton(Values):
     STASIS_Control.STASIS_System.TimingControl.con_mode=Values[0].get()
     STASIS_Control.STASIS_System.TimingControl.mod_res_sel=Values[1].get()
-    STASIS_Control.STASIS_System.SignalSource.source=Values[2].get()
+    STASIS_Control.STASIS_System.SignalSource.source=1-Values[2].get()
     update_status_text()
 
 def validateTimingEntry(TimingEntryInput, TimingEntry):
@@ -189,12 +191,12 @@ def loadPulse():
     pass
 
 def pulseTool():
-    p=STASIS_PulseTool.PulseToolObj()
-    
     p.openGUI()
+    MAINWINDOW.withdraw()
     p.pulseToolWindow.wait_window(p.pulseToolWindow)
+    MAINWINDOW.deiconify()
     update_status_text()
-    print('Test')
+    
 def callHelp():
     pass
 
@@ -233,23 +235,27 @@ def update_status_text():
     if STASIS_Control.STASIS_System.TimingControl.mod_res_sel == 1:
         status_text = status_text + ' Modulator Reset from Timing Control active. If you see (!) not all samples in this channel are played out.\n\n'
     
-    if STASIS_Control.STASIS_System.SignalSource.source == 1:
+    if STASIS_Control.STASIS_System.SignalSource.source == 0:
         status_text = status_text + ' External RF source.\n\n'
     else:
         status_text = status_text + ' Internal RF source.\n\n'
 
     status_text = status_text + ' Number of Channels: ' + str(STASIS_Control.STASIS_System.Modulator.number_of_channels) + '\n\n'\
-                              + 'Channel\tsamples\tpeak\tRMS\n'
-    
+                              + 'Channel\tsamples\tVrms,p\tP_RMS\n'
+    show_decimals = 2
     for a in range(STASIS_Control.STASIS_System.Modulator.number_of_channels):
         
+        RMS_value=0
         if STASIS_Control.STASIS_System.TimingControl.mod_res_sel == 1 and STASIS_Control.STASIS_System.Modulator.counter_max[a]>STASIS_Control.STASIS_System.TimingControl.counter_Tx:
-            RMS_value = round(sum(STASIS_Control.STASIS_System.Modulator.amplitudes[a][:STASIS_Control.STASIS_System.TimingControl.counter_Tx-1])/(STASIS_Control.STASIS_System.TimingControl.counter_Tx-1)*duty_cycle/100,4)
-            status_text = status_text + str(a+1) +'\t' +str(STASIS_Control.STASIS_System.Modulator.counter_max[a]) + '\t' + str(round(max(STASIS_Control.STASIS_System.Modulator.amplitudes[a]),4)) + '\t'+ str(RMS_value) + ' (!)\n'
+            for samples in range(STASIS_Control.STASIS_System.TimingControl.counter_Tx):
+                RMS_value = RMS_value + pow(STASIS_Control.STASIS_System.Modulator.amplitudes[a][samples],2)/50
+            RMS_value = round(RMS_value/STASIS_Control.STASIS_System.TimingControl.counter_Tx * duty_cycle/100,show_decimals)
+            status_text = status_text + str(a+1) +'\t' +str(STASIS_Control.STASIS_System.Modulator.counter_max[a]) + '\t' + str(round(max(STASIS_Control.STASIS_System.Modulator.amplitudes[a]),show_decimals)) + 'V\t'+ str(RMS_value) + 'W(!)\n'
         else:
-            RMS_value = round(sum(STASIS_Control.STASIS_System.Modulator.amplitudes[a][:STASIS_Control.STASIS_System.Modulator.counter_max[a]-1])/(STASIS_Control.STASIS_System.Modulator.counter_max[a]-1)*duty_cycle/100,4)
-            status_text = status_text + str(a+1) +'\t' + str(STASIS_Control.STASIS_System.Modulator.counter_max[a]) + '\t' + str(round(max(STASIS_Control.STASIS_System.Modulator.amplitudes[a]),4)) + '\t'+ str(RMS_value) + '\n'
-        
+            for samples in range(STASIS_Control.STASIS_System.Modulator.counter_max[a]):
+                RMS_value = RMS_value + pow(STASIS_Control.STASIS_System.Modulator.amplitudes[a][samples],2)/50
+            RMS_value = round(RMS_value/STASIS_Control.STASIS_System.Modulator.counter_max[a] * duty_cycle/100,show_decimals)
+            status_text = status_text + str(a+1) +'\t' + str(STASIS_Control.STASIS_System.Modulator.counter_max[a]) + '\t' + str(round(max(STASIS_Control.STASIS_System.Modulator.amplitudes[a]),show_decimals)) + 'V\t'+ str(RMS_value) + 'W\n'
         
     
     text_box.insert('1.0',status_text)
@@ -262,8 +268,8 @@ def update_status_text():
 ###### Start Programm ######
 
 ### Load Configuration file ###
-config=configparser.ConfigParser()
-config.read(os.path.dirname(__file__) + '/STASIS_config.ini')
+#config=configparser.ConfigParser()
+#config.read(os.path.dirname(__file__) + '/STASIS_config.ini')
 
 ### Instance Hardware Objects ##
 
@@ -282,6 +288,7 @@ STASIS_Control.STASIS_System.Modulator.set_amplitudes_phases_state(amplitudes,ph
 ### Start GUI ###
 
 MAINWINDOW = start_main_GUI()
+p=STASIS_PulseTool.PulseToolObj()
 MAINWINDOW.mainloop()
 
 

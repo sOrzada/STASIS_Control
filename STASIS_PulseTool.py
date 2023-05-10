@@ -11,7 +11,14 @@ import STASIS_Control
 class PulseToolObj:
     
     def __init__(self):
-        STASIS_Control.STASIS_System
+        #STASIS_Control.STASIS_System
+        
+        self.amplitudes = []
+        self.phases = []
+        self.states = []
+        self.pulse_names=('Sinc Pulse', 'Rect with frequency shift', 'Noise')
+    
+    def openGUI(self):
         self.clock = 10e6/STASIS_Control.STASIS_System.TimingControl.clock_divider
         self.clock_divider = STASIS_Control.STASIS_System.TimingControl.clock_divider
         self.Tx_samples = STASIS_Control.STASIS_System.TimingControl.counter_Tx
@@ -20,13 +27,6 @@ class PulseToolObj:
                         + '(Clock Divider: ' + str(self.clock_divider) + ')\n'\
                         + 'Tx Samples: ' + str(self.Tx_samples)+ '\n'\
                         + 'Number of Channels: ' + str(self.number_of_channels)
-        self.amplitudes = []
-        self.phases = []
-        self.states = []
-        self.pulse_names=('Sinc Pulse', 'Rect with frequency shift', 'Noise')
-        print('init')
-    
-    def openGUI(self):
         self.pulseToolWindow=Tk()
         self.pulseToolWindow.config(width=1200, height=700)
         self.pulseToolWindow.protocol('WM_DELETE_WINDOW', lambda: self.on_closing())

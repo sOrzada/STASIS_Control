@@ -6,6 +6,7 @@ from ft4222.SPI import Cpha, Cpol
 from ft4222.SPIMaster import Mode, Clock, SlaveSelect
 import os
 import configparser
+import csv
 
 class STASIS_SystemObj:
     def __init__(self,config):
@@ -21,16 +22,16 @@ class STASIS_SystemObj:
         except:
             pass
 
-        try:
-            if config['DEFAULT']['Modulator_Module'] == 'true':
-                self.Modulator = ModulatorObj(config)
-        except:
-            pass
 
+        if config['DEFAULT']['Modulator_Module'] == 'true':
+            self.Modulator = ModulatorObj(config)
+
+ 
         try:
             if config['DEFAULT']['USB2SPI_Module'] == 'true':
                 try:
                     self.SPI = USB2SPIObj(config)
+                    print('FT4222 connected.')
                 except:
                     print('<p>Error accessing FT4222! Make sure to connect to USB.</p>')
                     quit()
@@ -70,6 +71,7 @@ class USB2SPIObj: #Contains all data and methods for USB2SPI hardware.
         self.devA = ft4222.openByDescription('FT4222 A')
         #Configure Device for SPI (We allow different clock speeds according to config file)
         if config['SPI_config']['clock_divider'] == '8':
+            print('SPI Clock devider: 8')
             self.devA.spiMaster_Init(Mode.SINGLE, Clock.DIV_8, Cpha.CLK_LEADING, Cpol.IDLE_LOW, SlaveSelect.SS0)
         elif config['SPI_config']['clock_divider'] == '4':
             self.devA.spiMaster_Init(Mode.SINGLE, Clock.DIV_4, Cpha.CLK_LEADING, Cpol.IDLE_LOW, SlaveSelect.SS0)
@@ -80,18 +82,21 @@ class USB2SPIObj: #Contains all data and methods for USB2SPI hardware.
         self.devA.spiMaster_SingleWrite(bitstream, True)
 
 
+
+
+
 class SignalSourceObj: #Contains all data and methods for Signal Source Board
     #Attributes
     address = 0 #Standard address for Signal Source
-    source = 0
+    source = 1
     #Methods:
     def __init__(self,config):
         self.address = int(config['DEFAULT']['signal_source_address'])
         pass
     def set_internal(self): #Internal RF signal source (128MHz)
-        self.source = 1
-    def set_external(self): #External RF signal source fed via SMA
         self.source = 0
+    def set_external(self): #External RF signal source fed via SMA
+        self.source = 1
     def return_byte_stream(self): #Return a byte stream ready to be transmitted via SPI
         CB = ControlByteObj() #For improved readability I use the object CB to gerenate the control bits.
         data = bytes([CB.prog, 0 , 0, 0,
@@ -130,12 +135,12 @@ class TimingControlObj: #Contains all data and methods for Timing Control
                 case 1: #Register for Clock Devider
                     data1=self.clock_divider%256
                     data2=math.floor(self.clock_divider/256)
-                case 2: #Register for Rx Counter
-                    data1=self.counter_Rx%256
-                    data2=math.floor(self.counter_Rx/256)
-                case 3: #Register for Tx Counter
+                case 2: #Register for Tx Counter
                     data1=self.counter_Tx%256
                     data2=math.floor(self.counter_Tx/256)
+                case 3: #Register for Rx Counter
+                    data1=self.counter_Rx%256
+                    data2=math.floor(self.counter_Rx/256)
             byte_stream_add = [CB.prog + CB.chip(a), self.address, data2, data1,
                                CB.prog + CB.we + CB.chip(a), self.address, data2, data1,
                                CB.prog + CB.chip(a), self.address, data2, data1]
@@ -167,7 +172,32 @@ class ModulatorObj: #Contains all data and methods for Modulators
             self.I_values[a] = [pow(2,14)-1]*self.counter_max[a]
             self.Q_values[a] = [pow(2,13)-1]*self.counter_max[a]
             self.Amp_state[a] = [0]*self.counter_max[a]
-
+        
+        #Initialize Variables for I/Q offset
+        self.IQoffset = [0]*self.number_of_channels
+        for a in range(self.number_of_channels):
+            self.IQoffset[a]=[0]*2
+        self.f_name_CalZP=os.path.dirname(__file__) + '/' + config['Calibration']['Calibration_File_Zero_Point']
+        try:
+            self.read_IQ_offset()
+        except:
+            print('Could not open IQ offset calibration file. Using no offset.')
+    
+    
+    def read_IQ_offset(self):
+        with open(self.f_name_CalZP,'r') as f:
+            reader = csv.reader(f, delimiter=',')
+            a=0
+            for row in reader:
+                self.IQoffset[a][0]=int(row[0])
+                self.IQoffset[a][1]=int(row[1])
+                a=a+1
+                
+    def write_IQ_offset(self):
+        with open(self.f_name_CalZP, 'w', newline='') as csvfile:
+            writer = csv.writer(csvfile, delimiter=',')
+            writer.writerows(self.IQoffset)
+        
     def set_amplitudes_phases_state(self,amplitudes_in,phases_in,state_in):
         self.amplitudes=amplitudes_in
         self.phases=phases_in
