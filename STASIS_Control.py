@@ -192,30 +192,44 @@ class ModulatorObj: #Contains all data and methods for Modulators
                 self.IQoffset[a][0]=int(row[0])
                 self.IQoffset[a][1]=int(row[1])
                 a=a+1
-                
+
     def write_IQ_offset(self):
         with open(self.f_name_CalZP, 'w', newline='') as csvfile:
             writer = csv.writer(csvfile, delimiter=',')
             writer.writerows(self.IQoffset)
         
     def set_amplitudes_phases_state(self,amplitudes_in,phases_in,state_in):
+        
         self.amplitudes=amplitudes_in
         self.phases=phases_in
         self.I_values=[0]*self.number_of_channels
         self.Q_values=[0]*self.number_of_channels
         for a in range(self.number_of_channels):
-            self.counter_max[a]=len(amplitudes_in[a])
-            self.I_values[a]=[0]*self.counter_max[a]
-            self.Q_values[a]=[0]*self.counter_max[a]
-            self.Amp_state[a]=[0]*self.counter_max[a]
-            for b in range(len(amplitudes_in[a])):
-                self.I_values[a][b] = int(pow(2,13)-1 + amplitudes_in[a][b] * np.cos(phases_in[a][b])) #This is preliminary Code! Change later to account for amplitudes/calibration
-                self.Q_values[a][b] = int(pow(2,13)-1 + amplitudes_in[a][b] * np.sin(phases_in[a][b])) #This is preliminary Code! Change later to account for amplitude/calibration
-                self.Amp_state[a][b] = state_in[a][b]
+            if type(amplitudes_in[a]) is list: #Need to differentiate between cases with 1 and more elements.
+                self.counter_max[a]=len(amplitudes_in[a])
+                self.I_values[a]=[0]*self.counter_max[a]
+                self.Q_values[a]=[0]*self.counter_max[a]
+                self.Amp_state[a]=[0]*self.counter_max[a]
+                for b in range(self.counter_max[a]):
+                    cIQ=self.calcIQ(self.amplitudes[a][b],self.phases[a][b],a)
+                    self.I_values[a][b]=int(np.real(cIQ))
+                    self.Q_values[a][b]=int(np.imag(cIQ))
+                    self.Amp_state[a][b]=state_in[a][b]
+            else:
+                self.counter_max[a]=1
+                cIQ=self.calcIQ(self.amplitudes[a],self.phases[a],a)
+                self.I_values[a]=int(np.real(cIQ))
+                self.Q_values[a]=int(np.imag(cIQ))
+                self.Amp_state[a]=state_in[a]
 
+    def calcIQ(self,amp,ph,channel): #Calculate digital values including calibration
+        IQ=(pow(2,13)-1 +self.IQoffset[channel][0])+ 1j*(pow(2,13)-1 +self.IQoffset[channel][1]) + amp*np.exp(1j*np.pi/180*ph) #Only includes offset correction. ToDo: include non-linearity!
+        return IQ
+        
+        
 
     def return_byte_stream(self):
-        CB = ControlByteObj() #For improve readability use the object CB to gerenate the control bits.
+        CB = ControlByteObj() #For improved readability use the object CB to gerenate the control bits.
         byte_stream = [CB.prog, 0 , 0, 0]*1000 #Make sure the switching to programming mode is finished.
         for a in range(self.number_of_channels):
             #Programm counter
@@ -232,15 +246,25 @@ class ModulatorObj: #Contains all data and methods for Modulators
                 byte_stream = byte_stream + byte_stream_add
                 for b in range(self.counter_max[a]):
                     if c==0:
-                        data1=self.I_values[a][b]%256
-                        data2=math.floor(self.I_values[a][b]/256)+self.Amp_state[a][b]*64 #Switch 15th bit (7th in byte 2) akkording to amplifier state.
+                        if self.counter_max[a]>1:
+                            data1=self.I_values[a][b]%256
+                            data2=math.floor(self.I_values[a][b]/256)+self.Amp_state[a][b]*64 #Switch 15th bit (7th in byte 2) according to amplifier state.
+                        else:
+                            data1=self.I_values[a]%256
+                            data2=math.floor(self.I_values[a]/256)+self.Amp_state[a]*64 #Switch 15th bit (7th in byte 2) according to amplifier state.
+    
                         byte_stream_add = [CB.prog + CB.chip1, a + self.start_address, data2, data1,
                                            CB.prog + CB.chip1 + CB.we, a + self.start_address, data2, data1,
                                            CB.prog + CB.chip1 + CB.clock, a + self.start_address, data2, data1]
                         byte_stream = byte_stream + byte_stream_add
                     else:
-                        data1=self.Q_values[a][b]%256
-                        data2=math.floor(self.Q_values[a][b]/256) 
+                        if self.counter_max[a]>1:
+                            data1=self.Q_values[a][b]%256
+                            data2=math.floor(self.Q_values[a][b]/256)
+                        else:
+                            data1=self.Q_values[a]%256
+                            data2=math.floor(self.Q_values[a]/256)
+
                         byte_stream_add = [CB.prog + CB.chip2, a + self.start_address, data2, data1,
                                            CB.prog + CB.chip2 + CB.we, a + self.start_address, data2, data1,
                                            CB.prog + CB.chip2 + CB.clock, a + self.start_address, data2, data1]

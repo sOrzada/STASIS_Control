@@ -7,9 +7,13 @@ from time import sleep
 import os
 from tkinter import *
 from tkinter import scrolledtext
+from tkinter import filedialog
 from tkinter.messagebox import askyesno
 import STASIS_PulseTool
 import re
+import STASIS_Calibration
+import pickle
+from PIL import Image, ImageTk
 
 ### Define GUI ###
 
@@ -22,6 +26,7 @@ def start_main_GUI():
     MAINWINDOW.config(width=800, height=600)
     MAINWINDOW.resizable(False,False)
     MAINWINDOW.protocol('WM_DELETE_WINDOW', on_closing)
+    MAINWINDOW.iconbitmap(os.path.dirname(__file__) + '\images\S_square_32x32.ico')
     init_Menu(MAINWINDOW)
     text_box = scrolledtext.ScrolledText(MAINWINDOW, width = 45, height =30)
     text_box.place(x=400,y=60)
@@ -34,7 +39,9 @@ def start_main_GUI():
 
     #Options Checkbuttons here:
     LabelsCheckButtons = ['Continous Mode','Modulator Reset from Timing Control','External RF source']
+    global OptionsCheckButtons
     OptionsCheckButtons = []
+    global ValuesCheckButtons
     ValuesCheckButtons = [0,0,0]
     
     for a in range(3):
@@ -44,6 +51,7 @@ def start_main_GUI():
         OptionsCheckButtons[a].config(command=lambda: clickOptionsButton(ValuesCheckButtons))
 
     #Inputs for Timing Control here:
+    global TimingEntry
     TimingEntry = []
     TimingEntryInput = [0,0,0]
     TimingEntryLabel = []
@@ -70,6 +78,9 @@ def init_Menu(MainWindow): #Initialize the menu bar of main window.
     FileMenu = Menu(MenuBar, tearoff = 0)
     MenuBar.add_cascade(label='File', menu=FileMenu)
     #FileMenu.add_command(label = 'Quit', command = MAINWINDOW.destroy)
+    FileMenu.add_command(label= 'Load System State...', command=openFile)
+    FileMenu.add_command(label= 'Save System State...', command=saveFile)
+    FileMenu.add_separator()
     FileMenu.add_command(label = 'Quit', command = quit)
     ModulatorSettingsMenu = Menu(MenuBar, tearoff = 0)
     MenuBar.add_cascade(label='Modulators', menu=ModulatorSettingsMenu)
@@ -79,7 +90,8 @@ def init_Menu(MainWindow): #Initialize the menu bar of main window.
 
     CalibrationMenu = Menu(MenuBar, tearoff = 0)
     MenuBar.add_cascade(label='Calibration', menu=CalibrationMenu)
-    CalibrationMenu.add_command(label = 'Calibrate System', command = calibrateSystem)
+    CalibrationMenu.add_command(label = 'Zero Offset Calibration', command = calibrateSystemZero)
+    CalibrationMenu.add_command(label = 'Linearity Calibration', command = calibrateSystemLin1D)
 
     HelpMenu = Menu(MenuBar, tearoff = 0)
     MenuBar.add_cascade(label='Help', menu=HelpMenu)
@@ -96,6 +108,15 @@ def clickOptionsButton(Values):
     STASIS_Control.STASIS_System.TimingControl.mod_res_sel=Values[1].get()
     STASIS_Control.STASIS_System.SignalSource.source=1-Values[2].get()
     update_status_text()
+
+def openFile():
+    f_name=filedialog.askopenfile(mode='rb', filetypes=(('System State','*.sav'),), defaultextension=(('System State','*.sav'),))
+    STASIS_Control.STASIS_System = pickle.load(f_name)
+    update_status_text()
+
+def saveFile():
+    f_name=filedialog.asksaveasfile(mode='wb', filetypes=(('System State','*.sav'),), defaultextension=(('System State','*.sav'),))
+    pickle.dump(STASIS_Control.STASIS_System, f_name, pickle.HIGHEST_PROTOCOL)
 
 def validateTimingEntry(TimingEntryInput, TimingEntry):
     '''Checks Timings for Validity (max 2^16, only numbers) and applies settings'''
@@ -150,6 +171,7 @@ def setShim(): #Manually set a simple shim by typing into a textbox.
     setShimWindow.config(width=600, height=210)
     setShimWindow.geometry('%dx%d+%d+%d' % (600, 210, mainwindow_posx+50, mainwindow_posy+150))
     setShimWindow.title('Set simple shim')
+    setShimWindow.iconbitmap(os.path.dirname(__file__) + '\images\S_square_32x32.ico')
     shim_set_text = scrolledtext.ScrolledText(setShimWindow, width = 40, height =10)
     shim_set_text.place(x=50,y=10)
     shim_string=str('')
@@ -193,7 +215,7 @@ def loadPulse():
 def pulseTool():
     p.openGUI()
     MAINWINDOW.withdraw()
-    p.pulseToolWindow.wait_window(p.pulseToolWindow)
+    p.WindowMain.wait_window(p.WindowMain)
     MAINWINDOW.deiconify()
     update_status_text()
     
@@ -201,17 +223,44 @@ def callHelp():
     pass
 
 def aboutInfo():
-    aboutWindow = Tk()
+    aboutWindow = Toplevel()
+    aboutWindow.config(height=400,width=400)
     aboutWindow.resizable(False,False)
     aboutWindow.title('Info')
+    aboutWindow.iconbitmap(os.path.dirname(__file__) + '\images\S_square_32x32.ico')
     aboutLabel = Label(aboutWindow, text='\nSTASIS Control Software\nThis program was written by\nStephan Orzada\nat the German Cancer Center (DKFZ)\nStephan.Orzada@dkfz.de\n')
-    aboutLabel.pack()
+    aboutLabel.place(x=200,y=180, anchor=CENTER)
     okButton = Button(aboutWindow, text='OK', command = aboutWindow.destroy)
     okButton.place(relx=0.5, rely=0.85, anchor=CENTER, width=100)
     aboutLabel.config(width=40, height=15)
+
+    #STASIS Logo:
+    image_path_stasis=os.path.dirname(__file__) + '\Images\csm_STASIS_logo_dadfd3b026.jpg'
+    ph1=Image.open(image_path_stasis)
+    ph1=ph1.resize((256,114), resample=1)
+    ph1=ImageTk.PhotoImage(ph1)
+    label_image1 = Label(aboutWindow, image=ph1)
+    label_image1.place(x=200,y=70, anchor='center')
+    
+    #DKFZ Logo:
+    image_path_stasis=os.path.dirname(__file__) + '\Images\dkfz-logo2.png'
+    ph2=Image.open(image_path_stasis)
+    ph2=ph2.resize((181,54), resample=1)
+    ph2=ImageTk.PhotoImage(ph2)
+    label_image2 = Label(aboutWindow, image=ph2)
+    label_image2.place(x=200,y=270, anchor='center')
+
+
     aboutWindow.mainloop()
 
-def calibrateSystem():
+def calibrateSystemZero():
+    cal_zero.openGUI()
+    MAINWINDOW.withdraw()
+    cal_zero.WindowMain.wait_window(cal_zero.WindowMain)
+    MAINWINDOW.deiconify()
+    update_status_text()
+
+def calibrateSystemLin1D():
     pass
 
 def update_status_text():
@@ -224,7 +273,18 @@ def update_status_text():
     t_Tx=STASIS_Control.STASIS_System.TimingControl.counter_Tx/clock_f
     duty_cycle = t_Tx/(t_Rx+t_Tx)*100
     status_text= ' Clock Frequency: ' + str(clock_f/1000) + ' kHz\n'
-               
+
+    for a in range(3):
+        TimingEntry[a].delete('0',END)
+
+    TimingEntry[0].insert(0,str(STASIS_Control.STASIS_System.TimingControl.clock_divider))
+    TimingEntry[1].insert(0,str(STASIS_Control.STASIS_System.TimingControl.counter_Tx))
+    TimingEntry[2].insert(0,str(STASIS_Control.STASIS_System.TimingControl.counter_Rx))
+
+    ValuesCheckButtons[0].set(STASIS_Control.STASIS_System.TimingControl.con_mode)
+    ValuesCheckButtons[1].set(STASIS_Control.STASIS_System.TimingControl.mod_res_sel)
+    ValuesCheckButtons[2].set(abs(STASIS_Control.STASIS_System.SignalSource.source-1))
+
     if STASIS_Control.STASIS_System.TimingControl.con_mode == 1:
         duty_cycle = 100
         status_text = status_text + ' Mode: Continous\n\n'
@@ -247,15 +307,19 @@ def update_status_text():
         
         RMS_value=0
         if STASIS_Control.STASIS_System.TimingControl.mod_res_sel == 1 and STASIS_Control.STASIS_System.Modulator.counter_max[a]>STASIS_Control.STASIS_System.TimingControl.counter_Tx:
+            
             for samples in range(STASIS_Control.STASIS_System.TimingControl.counter_Tx):
                 RMS_value = RMS_value + pow(STASIS_Control.STASIS_System.Modulator.amplitudes[a][samples],2)/50
             RMS_value = round(RMS_value/STASIS_Control.STASIS_System.TimingControl.counter_Tx * duty_cycle/100,show_decimals)
-            status_text = status_text + str(a+1) +'\t' +str(STASIS_Control.STASIS_System.Modulator.counter_max[a]) + '\t' + str(round(max(STASIS_Control.STASIS_System.Modulator.amplitudes[a]),show_decimals)) + 'V\t'+ str(RMS_value) + 'W(!)\n'
+            status_text = status_text + str(a+1) +'\t' +str(STASIS_Control.STASIS_System.Modulator.counter_max[a]) + '\t' + str(round(np.max(STASIS_Control.STASIS_System.Modulator.amplitudes[a]),show_decimals)) + 'V\t'+ str(RMS_value) + 'W(!)\n'
         else:
-            for samples in range(STASIS_Control.STASIS_System.Modulator.counter_max[a]):
-                RMS_value = RMS_value + pow(STASIS_Control.STASIS_System.Modulator.amplitudes[a][samples],2)/50
+            if STASIS_Control.STASIS_System.Modulator.counter_max[a] > 1:
+                for samples in range(STASIS_Control.STASIS_System.Modulator.counter_max[a]):
+                    RMS_value = RMS_value + pow(STASIS_Control.STASIS_System.Modulator.amplitudes[a][samples],2)/50
+            else:
+                RMS_value = pow(STASIS_Control.STASIS_System.Modulator.amplitudes[a],2)/50
             RMS_value = round(RMS_value/STASIS_Control.STASIS_System.Modulator.counter_max[a] * duty_cycle/100,show_decimals)
-            status_text = status_text + str(a+1) +'\t' + str(STASIS_Control.STASIS_System.Modulator.counter_max[a]) + '\t' + str(round(max(STASIS_Control.STASIS_System.Modulator.amplitudes[a]),show_decimals)) + 'V\t'+ str(RMS_value) + 'W\n'
+            status_text = status_text + str(a+1) +'\t' + str(STASIS_Control.STASIS_System.Modulator.counter_max[a]) + '\t' + str(round(np.max(STASIS_Control.STASIS_System.Modulator.amplitudes[a]),show_decimals)) + 'V\t'+ str(RMS_value) + 'W\n'
         
     
     text_box.insert('1.0',status_text)
@@ -286,9 +350,14 @@ for channel in range(8):
 STASIS_Control.STASIS_System.Modulator.set_amplitudes_phases_state(amplitudes,phases,amp_state)
 
 ### Start GUI ###
-
-MAINWINDOW = start_main_GUI()
 p=STASIS_PulseTool.PulseToolObj()
+cal_zero=STASIS_Calibration.CalibrateZeroObj()
+MAINWINDOW = start_main_GUI()
+
+
+
+
+
 MAINWINDOW.mainloop()
 
 

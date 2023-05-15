@@ -3,6 +3,7 @@ from time import sleep
 from tkinter import *
 from tkinter import scrolledtext
 import re
+import os
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import random
@@ -17,7 +18,7 @@ class PulseToolObj:
         self.phases = []
         self.states = []
         self.pulse_names=('Sinc Pulse', 'Rect with frequency shift', 'Noise')
-    
+        
     def openGUI(self):
         self.clock = 10e6/STASIS_Control.STASIS_System.TimingControl.clock_divider
         self.clock_divider = STASIS_Control.STASIS_System.TimingControl.clock_divider
@@ -27,33 +28,33 @@ class PulseToolObj:
                         + '(Clock Divider: ' + str(self.clock_divider) + ')\n'\
                         + 'Tx Samples: ' + str(self.Tx_samples)+ '\n'\
                         + 'Number of Channels: ' + str(self.number_of_channels)
-        self.pulseToolWindow=Tk()
-        self.pulseToolWindow.config(width=1200, height=700)
-        self.pulseToolWindow.protocol('WM_DELETE_WINDOW', lambda: self.on_closing())
-        self.pulseToolWindow.title('STASIS - Simple Pulse Tool')
-        
+        self.WindowMain=Toplevel()
+        self.WindowMain.config(width=1200, height=700)
+        self.WindowMain.protocol('WM_DELETE_WINDOW', lambda: self.on_closing())
+        self.WindowMain.title('STASIS - Simple Pulse Tool')
+        self.WindowMain.iconbitmap(os.path.dirname(__file__) + '\images\S_square_32x32.ico')
         #General Info Box
-        self.text_box_info = scrolledtext.ScrolledText(self.pulseToolWindow, width = 45, height =8)
+        self.text_box_info = scrolledtext.ScrolledText(self.WindowMain, width = 45, height =8)
         self.text_box_info.place(x=20,y=20)
         self.text_box_info.insert(1.0, self.info_text)
         self.text_box_info.config(state='disabled')
 
-        self.text_box_input = scrolledtext.ScrolledText(self.pulseToolWindow, width = 45, height =30)
+        self.text_box_input = scrolledtext.ScrolledText(self.WindowMain, width = 45, height =30)
         self.text_box_input.place(x=20,y=180)
         
-        self.pulses = Variable(self.pulseToolWindow, value=self.pulse_names)
-        self.pulse_list_box = Listbox(self.pulseToolWindow, listvariable=self.pulses, height=5, width=30, selectmode=EXTENDED)
+        self.pulses = Variable(self.WindowMain, value=self.pulse_names)
+        self.pulse_list_box = Listbox(self.WindowMain, listvariable=self.pulses, height=5, width=30, selectmode=EXTENDED)
         self.pulse_list_box.place(x=450, y = 30)
         self.pulse_list_box.config(exportselection=False)        
         self.pulse_list_box.bind('<<ListboxSelect>>',self.listboxSelect)
         
-        self.Button_Calculate_Pulse = Button(self.pulseToolWindow, text='Calculate -->', command = self.Button_Calculate_Pulse_Press)
+        self.Button_Calculate_Pulse = Button(self.WindowMain, text='Calculate -->', command = self.Button_Calculate_Pulse_Press)
         self.Button_Calculate_Pulse.place(x=540,y=320, anchor=CENTER, width=150, height=50)
 
-        self.Button_Apply_Close = Button(self.pulseToolWindow, text = 'Apply & Close', command = self.Button_Apply_Close_Press)
+        self.Button_Apply_Close = Button(self.WindowMain, text = 'Apply & Close', command = self.Button_Apply_Close_Press)
         self.Button_Apply_Close.place(x=540, y = 620, anchor=CENTER, width = 150, height = 50)
 
-        self.frame_right = Frame(self.pulseToolWindow, borderwidth=3, relief='raised')
+        self.frame_right = Frame(self.WindowMain, borderwidth=3, relief='raised')
         self.frame_right.place(x=690, y=5, width=505, height=680)
 
         self.figure_time_domain = Figure(figsize=(6,4), dpi=80)
@@ -65,9 +66,9 @@ class PulseToolObj:
     def return_Object(self):
         return STASIS_Control.STASIS_System
     def on_closing(self):
-        self.pulseToolWindow.destroy()
+        self.WindowMain.destroy()
     def mainloop(self):
-        self.pulseToolWindow.mainloop()
+        self.WindowMain.mainloop()
     def listboxSelect(self,event):
         selected = self.pulse_list_box.curselection()
         selected_Pulse = selected[0]
@@ -163,7 +164,7 @@ class PulseToolObj:
         self.plot_figure_time_domain.set_xlabel('Samples')
         self.plot_figure_time_domain.set_ylabel('Amplitude')
         self.plot_figure_time_domain.set_title('Profile Channel 1')
-        canvas = FigureCanvasTkAgg(self.figure_time_domain, master=self.pulseToolWindow)
+        canvas = FigureCanvasTkAgg(self.figure_time_domain, master=self.WindowMain)
         canvas.draw()
         canvas.get_tk_widget().place(x=700, y=15)
 
@@ -178,7 +179,7 @@ class PulseToolObj:
         self.plot_figure_multipurpose.set_xlabel('Frequency in kHz')
         self.plot_figure_multipurpose.set_ylabel('Amplitude')
         self.plot_figure_multipurpose.set_title('FFT Channel 1')
-        canvas = FigureCanvasTkAgg(self.figure_multipurpose, master=self.pulseToolWindow)
+        canvas = FigureCanvasTkAgg(self.figure_multipurpose, master=self.WindowMain)
         canvas.draw()
         canvas.get_tk_widget().place(x=700, y=350)
 
@@ -244,7 +245,7 @@ class PulseToolObj:
     def Button_Apply_Close_Press(self):
         if len(self.amplitudes)>0:
             STASIS_Control.STASIS_System.Modulator.set_amplitudes_phases_state(self.amplitudes,self.phases,self.states)
-            self.pulseToolWindow.destroy()
+            self.WindowMain.destroy()
         
 
 def A_phi2complex(amplitudes,phases):
