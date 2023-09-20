@@ -1,4 +1,4 @@
-# Classes for Hardware Modules of STASIS system are defined and initialized here.
+'''Classes for Hardware Modules of STASIS system are defined and initialized here.'''
 import math
 import numpy as np
 import ft4222
@@ -9,6 +9,7 @@ import configparser
 import csv
 
 class STASIS_SystemObj:
+    '''Here we combine all classes to have a single object for the STASIS System.'''
     def __init__(self,config):
         try:
             if config['DEFAULT']['Signal_Source_module'] == 'true':
@@ -45,10 +46,15 @@ class STASIS_SystemObj:
     def disable_system(self):
         self.SPI.send_bitstream(bytes([0,0,0,0]))
 
-
+### Helper Classes ###
+class PulseObj:
+    '''This is a Pulse Object for saving/loading pulses to/from files.'''
+    Amplitudes=[]
+    Phases=[]
+    States=[]
 
 class ControlByteObj: #Contains the control bits. Select the state and add for complete control byte. I introduced this for better readability of code.
-    '''ControlByteObj'''
+    '''This class contains some constants that make the code in this module more readable.'''
     chip0=0 #Important: Use only one chip at a time!
     chip1=1
     chip2=2
@@ -65,10 +71,14 @@ class ControlByteObj: #Contains the control bits. Select the state and add for c
         '''chip(c) simply returns c.'''
         return int(c)
 
-class USB2SPIObj: #Contains all data and methods for USB2SPI hardware. 
+### Hardware Representation Classes ###
+class USB2SPIObj: #Contains all data and methods for USB2SPI hardware.
+    '''This class contains all methods to send bit streams through a FT4222 in SPI mode.'''
     def __init__(self,config):
+        
         #Open device with default Name
         self.devA = ft4222.openByDescription('FT4222 A')
+        
         #Configure Device for SPI (We allow different clock speeds according to config file)
         if config['SPI_config']['clock_divider'] == '8':
             print('SPI Clock devider: 8')
@@ -79,25 +89,33 @@ class USB2SPIObj: #Contains all data and methods for USB2SPI hardware.
             self.devA.spiMaster_Init(Mode.SINGLE, Clock.DIV_16, Cpha.CLK_LEADING, Cpol.IDLE_LOW, SlaveSelect.SS0)
     
     def send_bitstream(self, bitstream): #Write bit stream. Input variable is actually a row of 4*N bytes.
+        '''This method sends a bitstream via the SPI interface.\n
+        The input variable "bitstream" is a list of 4*N bytes.\n
+        The order is: \n
+            Control byte\n
+            Address byte\n
+            Data byte 2 (with most significant of 16 bits)\n
+            Data byte 1 (with least significant of 16 bits)\n'''
         self.devA.spiMaster_SingleWrite(bitstream, True)
 
-
-
-
-
 class SignalSourceObj: #Contains all data and methods for Signal Source Board
+    '''Contains all data and methods for Signal Source Board'''
     #Attributes
     address = 0 #Standard address for Signal Source
     source = 1
+    
     #Methods:
     def __init__(self,config):
         self.address = int(config['DEFAULT']['signal_source_address'])
         pass
     def set_internal(self): #Internal RF signal source (128MHz)
-        self.source = 0
-    def set_external(self): #External RF signal source fed via SMA
+        '''Set the signal source to internal RF Signal.'''
         self.source = 1
+    def set_external(self): #External RF signal source fed via SMA
+        '''Set the signal source to external RF Signal.'''
+        self.source = 0
     def return_byte_stream(self): #Return a byte stream ready to be transmitted via SPI
+        '''Returns a list of bytes which can be transferred via SPI, according to the current state of this Object.'''
         CB = ControlByteObj() #For improved readability I use the object CB to gerenate the control bits.
         data = bytes([CB.prog, 0 , 0, 0,
                       CB.prog + CB.chip(0), self.address, 0, self.source,
@@ -107,24 +125,37 @@ class SignalSourceObj: #Contains all data and methods for Signal Source Board
         return data
 
 class TimingControlObj: #Contains all data and methods for Timing Control
-    #Attributes
+    '''Contains all data and methods for Timing Control Board'''
+    
+    ### Attributes ###
     con_mode = 0 #Continous Mode or intermittant mode (Tx/Rx)
     mod_res_sel = 0 #Select whether to reset modulators via Tx/Rx (1) or their own counters (0)
     ubl_enable = 1 #Enable unblank
     clock_divider = 100 #Clock Divider for 10 MHz clock.
     counter_Rx = 255 #Rx will last this many clock cycles
     counter_Tx = 255 #Tx will last this many clock cycles
+    
+    ### Methods ###
     def __init__(self,config):
         self.address = int(config['DEFAULT']['timing_control_address']) #Physical Address for TimingControl
+    
     def set_continous_mode(self):
+        '''Set the variable for Continous Transmit Mode to enable.'''
         self.con_mode = 1
+   
     def set_alternating_mode(self):
+        '''Set the variable for Continous Transmit Mode to disable. System will be alternating between Tx and "Rx"'''
         self.con_mode = 0
+    
     def switch_off(self):
         self.ubl_enable = 0
+    
     def switch_on(self):
-        self.ubl_enable = 0
+        self.ubl_enable = 1
+    
     def return_byte_stream(self):
+        '''Returns list of bytes to be transmitted via SPI interface. 
+        The list of bytes provides the correct sequence to program the hardware to the settings in this object.'''
         CB = ControlByteObj() #For improved readability use the object CB to gerenate the control bits.
         byte_stream = [CB.prog, 0, 0, 0] #Initiate by setting system into write mode.
         for a in range(4): #Timing Control contains 4 registers.
@@ -148,7 +179,9 @@ class TimingControlObj: #Contains all data and methods for Timing Control
         byte_stream=byte_stream + [CB.prog, 0, 0, 0]
         data = bytes(byte_stream)
         return data
+    
     def return_timings(self): #Calculate and return timings
+        '''Calculates and prints timings Terminal'''
         clock_f=10e6/self.clock_divider
         t_Rx=self.counter_Rx/clock_f
         t_Tx=self.counter_Tx/clock_f
@@ -159,7 +192,10 @@ class TimingControlObj: #Contains all data and methods for Timing Control
         print('Duty Cycle: ' + str(duty_cycle) + '%')
 
 class ModulatorObj: #Contains all data and methods for Modulators
+    '''Contains all data and methods for Modulator board. This also includes calibration data.'''
+    
     def __init__(self,config):
+        '''Initialize Modulator Object with standard values and values from config file.'''
         self.number_of_channels = int(config['DEFAULT']['number_of_channels']) #Number of modulators in system.
         self.start_address = int(config['DEFAULT']['start_channel']) #address of first modulator, others are counted upwards from here.
         self.counter_max = [1] * self.number_of_channels #Maximum of value of counter in modulator. On this number, it switches back to 0
@@ -168,6 +204,7 @@ class ModulatorObj: #Contains all data and methods for Modulators
         self.Q_values = [0] * self.number_of_channels #Quadrature value for Modulator
         self.amplitudes = [200] *self.number_of_channels #Amplitudes of all channels
         self.phases = [0] * self.number_of_channels #Phases of all channels
+        
         for a in range(self.number_of_channels):
             self.I_values[a] = [pow(2,14)-1]*self.counter_max[a]
             self.Q_values[a] = [pow(2,13)-1]*self.counter_max[a]
@@ -185,6 +222,7 @@ class ModulatorObj: #Contains all data and methods for Modulators
     
     
     def read_IQ_offset(self):
+        '''Reads the IQ offset from calibration file which is specified in the config file.'''
         with open(self.f_name_CalZP,'r') as f:
             reader = csv.reader(f, delimiter=',')
             a=0
@@ -194,12 +232,14 @@ class ModulatorObj: #Contains all data and methods for Modulators
                 a=a+1
 
     def write_IQ_offset(self):
+        '''Saves the current IQ offset to the calibration file which is specified in the config file.'''
         with open(self.f_name_CalZP, 'w', newline='') as csvfile:
             writer = csv.writer(csvfile, delimiter=',')
             writer.writerows(self.IQoffset)
         
     def set_amplitudes_phases_state(self,amplitudes_in,phases_in,state_in):
-        
+        '''Sets the digital I and Q values to achieve the amplitudes and phases specified in the input variables.\n
+        This includes normalizing according to the calibration.'''
         self.amplitudes=amplitudes_in
         self.phases=phases_in
         self.I_values=[0]*self.number_of_channels
@@ -223,41 +263,40 @@ class ModulatorObj: #Contains all data and methods for Modulators
                 self.Amp_state[a]=state_in[a]
 
     def calcIQ(self,amp,ph,channel): #Calculate digital values including calibration
-        IQ=(pow(2,13)-1 +self.IQoffset[channel][0])+ 1j*(pow(2,13)-1 +self.IQoffset[channel][1]) + amp*np.exp(1j*np.pi/180*ph) #Only includes offset correction. ToDo: include non-linearity!
+        '''This function translates a value for amplitude and phase into a complex I/Q value including normalization according to the calibration.\n
+        "amp" is a single amplitude.\n
+        "phase is a single phase.\n
+        "channel" specifies for which channel this sample is. This is necessary to use the correct calibration values.'''
+        IQ=(pow(2,13)-1 +self.IQoffset[channel][0])+ 1j*(pow(2,13)-1 +self.IQoffset[channel][1]) + amp*np.exp(1j*np.pi/180*ph) #Only includes offset correction. ToDo: include non-linearity! ToDo: include state!!
         return IQ
         
         
 
     def return_byte_stream(self):
+        '''Returns a byte stream to be transmitted via SPI. This byte stream is suited to programm the modulators (hardware) to the state given in this object'''
         CB = ControlByteObj() #For improved readability use the object CB to gerenate the control bits.
         byte_stream = [CB.prog, 0 , 0, 0]*1000 #Make sure the switching to programming mode is finished.
-        for a in range(self.number_of_channels):
-            #Programm counter
+        for a in range(self.number_of_channels): #Run through all channels
             data1=self.counter_max[a]%256
             data2=math.floor(self.counter_max[a]/256)
             byte_stream_add = [CB.prog + CB.chip0, a + self.start_address, data2, data1,
                                CB.prog + CB.we + CB.chip0, a + self.start_address, data2, data1,
                                CB.prog + CB.chip0, a + self.start_address, data2, data1]
             byte_stream = byte_stream + byte_stream_add
-            for c in range(1):
+            for c in range(2): #Run through all SRAMs
                 byte_stream_add = [CB.prog, a + self.start_address, 0, 0,
                                    CB.prog + CB.reset, a + self.start_address, 0, 0, #Reset counters before starting to fill SRAM.
                                    CB.prog, a + self.start_address, 0, 0]
                 byte_stream = byte_stream + byte_stream_add
-                for b in range(self.counter_max[a]):
-                    if c==0:
+                for b in range(self.counter_max[a]): #Run through all samples
+                    if c==0: #First SRAM Chip
                         if self.counter_max[a]>1:
                             data1=self.I_values[a][b]%256
                             data2=math.floor(self.I_values[a][b]/256)+self.Amp_state[a][b]*64 #Switch 15th bit (7th in byte 2) according to amplifier state.
                         else:
                             data1=self.I_values[a]%256
                             data2=math.floor(self.I_values[a]/256)+self.Amp_state[a]*64 #Switch 15th bit (7th in byte 2) according to amplifier state.
-    
-                        byte_stream_add = [CB.prog + CB.chip1, a + self.start_address, data2, data1,
-                                           CB.prog + CB.chip1 + CB.we, a + self.start_address, data2, data1,
-                                           CB.prog + CB.chip1 + CB.clock, a + self.start_address, data2, data1]
-                        byte_stream = byte_stream + byte_stream_add
-                    else:
+                    elif c==1: #Second SRAM Chip
                         if self.counter_max[a]>1:
                             data1=self.Q_values[a][b]%256
                             data2=math.floor(self.Q_values[a][b]/256)
@@ -265,18 +304,21 @@ class ModulatorObj: #Contains all data and methods for Modulators
                             data1=self.Q_values[a]%256
                             data2=math.floor(self.Q_values[a]/256)
 
-                        byte_stream_add = [CB.prog + CB.chip2, a + self.start_address, data2, data1,
-                                           CB.prog + CB.chip2 + CB.we, a + self.start_address, data2, data1,
-                                           CB.prog + CB.chip2 + CB.clock, a + self.start_address, data2, data1]
-                        byte_stream = byte_stream + byte_stream_add
-        byte_stream = byte_stream + [CB.prog, 0, 0, 0]
+                    byte_stream_add = [CB.prog + CB.chip(c+1), a + self.start_address, data2, data1,
+                                       CB.prog + CB.chip(c+1) + CB.we, a + self.start_address, data2, data1,
+                                       CB.prog + CB.chip(c+1), a + self.start_address, data2, data1,
+                                       CB.prog + CB.chip(c+1) + CB.clock, a + self.start_address, data2, data1]
+                    byte_stream = byte_stream + byte_stream_add
+
+        byte_stream = byte_stream + [CB.prog + CB.reset, 0, 0, 0] + [CB.prog, 0, 0, 0]
         data=bytes(byte_stream)    
         return data
 
+
+### Load config file ###
 config=configparser.ConfigParser()
 config.read(os.path.dirname(__file__) + '/STASIS_config.ini')
 
-### Instance Hardware Objects ##
-
+### Instance Hardware Objects ###
 STASIS_System = STASIS_SystemObj(config)
 print('Initialized System')

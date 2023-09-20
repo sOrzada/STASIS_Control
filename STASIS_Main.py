@@ -1,5 +1,4 @@
 import STASIS_Control #Contains definition of Hardware and Initializes Hardware.
-import ft4222 #Library for SPI device
 import math
 import numpy as np
 import configparser
@@ -16,7 +15,6 @@ import pickle
 from PIL import Image, ImageTk
 
 ### Define GUI ###
-
 
 def start_main_GUI():
     global MAINWINDOW
@@ -77,16 +75,20 @@ def init_Menu(MainWindow): #Initialize the menu bar of main window.
     
     FileMenu = Menu(MenuBar, tearoff = 0)
     MenuBar.add_cascade(label='File', menu=FileMenu)
-    #FileMenu.add_command(label = 'Quit', command = MAINWINDOW.destroy)
     FileMenu.add_command(label= 'Load System State...', command=openFile)
     FileMenu.add_command(label= 'Save System State...', command=saveFile)
     FileMenu.add_separator()
     FileMenu.add_command(label = 'Quit', command = quit)
+    
     ModulatorSettingsMenu = Menu(MenuBar, tearoff = 0)
     MenuBar.add_cascade(label='Modulators', menu=ModulatorSettingsMenu)
     ModulatorSettingsMenu.add_command(label = 'Set Shim', command = setShim)
-    ModulatorSettingsMenu.add_command(label = 'Load Pulse', command = loadPulse)
     ModulatorSettingsMenu.add_command(label = 'Pulse Tool', command = pulseTool)
+    ModulatorSettingsMenu.add_separator()
+    ModulatorSettingsMenu.add_command(label= 'Load Pulse...', command=loadPulse)
+    ModulatorSettingsMenu.add_command(label= 'Save Pulse...', command=savePulse)
+    ModulatorSettingsMenu.add_separator()
+    ModulatorSettingsMenu.add_command(label = 'Load External Pulse...', command = externalPulse)
 
     CalibrationMenu = Menu(MenuBar, tearoff = 0)
     MenuBar.add_cascade(label='Calibration', menu=CalibrationMenu)
@@ -104,19 +106,49 @@ def on_closing():
     quit()
 
 def clickOptionsButton(Values):
-    STASIS_Control.STASIS_System.TimingControl.con_mode=Values[0].get()
+    if Values[0].get()==1:
+        STASIS_Control.STASIS_System.TimingControl.set_continous_mode()
+    else:
+        STASIS_Control.STASIS_System.TimingControl.set_alternating_mode()
+
     STASIS_Control.STASIS_System.TimingControl.mod_res_sel=Values[1].get()
-    STASIS_Control.STASIS_System.SignalSource.source=1-Values[2].get()
+
+    if Values[2].get()==1:
+        STASIS_Control.STASIS_System.SignalSource.set_external()
+    else:
+        STASIS_Control.STASIS_System.SignalSource.set_internal()
+    
     update_status_text()
 
-def openFile():
+def openFile(): #ToDo: Check functionality of SPI-Object!
     f_name=filedialog.askopenfile(mode='rb', filetypes=(('System State','*.sav'),), defaultextension=(('System State','*.sav'),))
     STASIS_Control.STASIS_System = pickle.load(f_name)
     update_status_text()
 
-def saveFile():
+def saveFile(): # ToDo: Check functionality of SPI-Object!
     f_name=filedialog.asksaveasfile(mode='wb', filetypes=(('System State','*.sav'),), defaultextension=(('System State','*.sav'),))
     pickle.dump(STASIS_Control.STASIS_System, f_name, pickle.HIGHEST_PROTOCOL)
+
+def loadPulse():
+    '''Loads a pulse (Amplitude, Phase, State) and applies this to modulators (this includes a normalization from calibration)'''
+    f_name=filedialog.askopenfile(mode='rb', filetypes=(('STASIS Pulse File','*.pls'),), defaultextension=(('STASIS Pulse File','*.pls'),))
+    pulse = pickle.load(f_name)
+    STASIS_Control.STASIS_System.Modulator.set_amplitudes_phases_state(pulse.Amplitudes,pulse.Phases,pulse.States)
+    update_status_text()
+
+def savePulse():
+    '''Saves the current pulse (Amplitude, Phase, State)'''
+    pulse=STASIS_Control.PulseObj()
+    pulse.Amplitudes = STASIS_Control.STASIS_System.Modulator.amplitudes
+    pulse.Phases = STASIS_Control.STASIS_System.Modulator.phases
+    pulse.States = STASIS_Control.STASIS_System.Modulator.Amp_state
+
+    f_name=filedialog.asksaveasfile(mode='wb', filetypes=(('STASIS Pulse File','*.pls'),), defaultextension=(('STASIS Pulse File','*.pls'),))
+    pickle.dump(pulse, f_name, pickle.HIGHEST_PROTOCOL)
+    pass
+
+def externalPulse():
+    pass
 
 def validateTimingEntry(TimingEntryInput, TimingEntry):
     '''Checks Timings for Validity (max 2^16, only numbers) and applies settings'''
@@ -206,17 +238,11 @@ def setShim_Button_Press(text_in,amp_state_select,window):
     update_status_text()
     window.destroy()
     
-        
-        
 
-def loadPulse():
-    pass
 
 def pulseTool():
     p.openGUI()
-    MAINWINDOW.withdraw()
     p.WindowMain.wait_window(p.WindowMain)
-    MAINWINDOW.deiconify()
     update_status_text()
     
 def callHelp():
@@ -249,15 +275,16 @@ def aboutInfo():
     ph2=ImageTk.PhotoImage(ph2)
     label_image2 = Label(aboutWindow, image=ph2)
     label_image2.place(x=200,y=270, anchor='center')
-
+    aboutWindow.grab_set()
 
     aboutWindow.mainloop()
 
 def calibrateSystemZero():
     cal_zero.openGUI()
-    MAINWINDOW.withdraw()
+    #MAINWINDOW.withdraw()
+    cal_zero.WindowMain.grab_set()
     cal_zero.WindowMain.wait_window(cal_zero.WindowMain)
-    MAINWINDOW.deiconify()
+    #MAINWINDOW.deiconify()
     update_status_text()
 
 def calibrateSystemLin1D():
@@ -303,6 +330,7 @@ def update_status_text():
     status_text = status_text + ' Number of Channels: ' + str(STASIS_Control.STASIS_System.Modulator.number_of_channels) + '\n\n'\
                               + 'Channel\tsamples\tVrms,p\tP_RMS\n'
     show_decimals = 2
+    RMS_total = 0
     for a in range(STASIS_Control.STASIS_System.Modulator.number_of_channels):
         
         RMS_value=0
@@ -319,8 +347,9 @@ def update_status_text():
             else:
                 RMS_value = pow(STASIS_Control.STASIS_System.Modulator.amplitudes[a],2)/50
             RMS_value = round(RMS_value/STASIS_Control.STASIS_System.Modulator.counter_max[a] * duty_cycle/100,show_decimals)
+            RMS_total = RMS_total + RMS_value
             status_text = status_text + str(a+1) +'\t' + str(STASIS_Control.STASIS_System.Modulator.counter_max[a]) + '\t' + str(round(np.max(STASIS_Control.STASIS_System.Modulator.amplitudes[a]),show_decimals)) + 'V\t'+ str(RMS_value) + 'W\n'
-        
+    status_text = status_text + '\nTotal RMS Power: ' + str(round(RMS_total,show_decimals)) + ' W\n'    
     
     text_box.insert('1.0',status_text)
     text_box.config(state=DISABLED)

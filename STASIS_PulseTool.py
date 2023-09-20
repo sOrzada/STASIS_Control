@@ -1,3 +1,4 @@
+'''GUI for calculating different types of pulses.'''
 import numpy as np
 from time import sleep
 from tkinter import *
@@ -10,16 +11,20 @@ import random
 import STASIS_Control
 
 class PulseToolObj:
-    
+    '''This class contains all data and methods for a simple pulse tool for the STASIS System.\n
+    The pulse tool enables the user to specify time varying pulses.'''
     def __init__(self):
-        #STASIS_Control.STASIS_System
+        '''Initialize Pulse Tool Object'''
         
         self.amplitudes = []
         self.phases = []
         self.states = []
+        ### Here, the pulse names are defined for the list of pulses the user can choose from.
         self.pulse_names=('Sinc Pulse', 'Rect with frequency shift', 'Noise')
         
     def openGUI(self):
+        '''Opens the GUI for the pulse tool.'''
+        ### Initialize values for use in this Tool ###
         self.clock = 10e6/STASIS_Control.STASIS_System.TimingControl.clock_divider
         self.clock_divider = STASIS_Control.STASIS_System.TimingControl.clock_divider
         self.Tx_samples = STASIS_Control.STASIS_System.TimingControl.counter_Tx
@@ -28,48 +33,63 @@ class PulseToolObj:
                         + '(Clock Divider: ' + str(self.clock_divider) + ')\n'\
                         + 'Tx Samples: ' + str(self.Tx_samples)+ '\n'\
                         + 'Number of Channels: ' + str(self.number_of_channels)
+        
+        #Define Window for GUI and set make this the only active window.
         self.WindowMain=Toplevel()
         self.WindowMain.config(width=1200, height=700)
         self.WindowMain.protocol('WM_DELETE_WINDOW', lambda: self.on_closing())
         self.WindowMain.title('STASIS - Simple Pulse Tool')
         self.WindowMain.iconbitmap(os.path.dirname(__file__) + '\images\S_square_32x32.ico')
+        self.WindowMain.grab_set()
+        
         #General Info Box
         self.text_box_info = scrolledtext.ScrolledText(self.WindowMain, width = 45, height =8)
         self.text_box_info.place(x=20,y=20)
         self.text_box_info.insert(1.0, self.info_text)
         self.text_box_info.config(state='disabled')
-
+        
+        #Text box for user interaction. This Textbox is parsed to extract user inputs.
         self.text_box_input = scrolledtext.ScrolledText(self.WindowMain, width = 45, height =30)
         self.text_box_input.place(x=20,y=180)
         
+        #Listbox for choosing the type of pulse to be used.
         self.pulses = Variable(self.WindowMain, value=self.pulse_names)
         self.pulse_list_box = Listbox(self.WindowMain, listvariable=self.pulses, height=5, width=30, selectmode=EXTENDED)
         self.pulse_list_box.place(x=450, y = 30)
         self.pulse_list_box.config(exportselection=False)        
         self.pulse_list_box.bind('<<ListboxSelect>>',self.listboxSelect)
-        
+        self.pulse_list_box.selection_set(0) #Make a standard selection when opening window.
+        self.listboxSelect(self.pulse_list_box.event_generate('<<ListboxSelect>>')) #Pretend the user has clicked the standard selection.
+
+        #Button to calculate pulse from user selctions and inputs.
         self.Button_Calculate_Pulse = Button(self.WindowMain, text='Calculate -->', command = self.Button_Calculate_Pulse_Press)
         self.Button_Calculate_Pulse.place(x=540,y=320, anchor=CENTER, width=150, height=50)
 
+        #Button for applying the calculated pulse to the STASIS System Object (will not yet be transmitted to hardware)
         self.Button_Apply_Close = Button(self.WindowMain, text = 'Apply & Close', command = self.Button_Apply_Close_Press)
         self.Button_Apply_Close.place(x=540, y = 620, anchor=CENTER, width = 150, height = 50)
 
+        #A Frame for the good looks.
         self.frame_right = Frame(self.WindowMain, borderwidth=3, relief='raised')
         self.frame_right.place(x=690, y=5, width=505, height=680)
 
+        #Two figures, one for time domain of pulse, one for frequency domain.
         self.figure_time_domain = Figure(figsize=(6,4), dpi=80)
         self.figure_multipurpose = Figure(figsize=(6,4), dpi=80)
         self.plot_figure_time_domain = self.figure_time_domain.add_subplot(111)
         self.plot_figure_multipurpose = self.figure_multipurpose.add_subplot(111)
 
-        
-    def return_Object(self):
-        return STASIS_Control.STASIS_System
     def on_closing(self):
+        '''Function that is called when the Pulse Tool GUI is closed.'''
+        self.WindowMain.grab_release()
         self.WindowMain.destroy()
+    
     def mainloop(self):
+        '''Mainloop for stand-alone purposes.'''
         self.WindowMain.mainloop()
+    
     def listboxSelect(self,event):
+        '''When an item from the Listbox is selected, this method is called.'''
         selected = self.pulse_list_box.curselection()
         selected_Pulse = selected[0]
         match selected_Pulse:
@@ -82,6 +102,7 @@ class PulseToolObj:
         self.Button_Calculate_Pulse_Press() #Run once to show standard
 
     def sinc_pulse_setup(self):
+        '''Setup for sinc pulse. Specifies standard values and sets up the text box.'''
         self.bandwidth = 1000
         self.freq_shift = 1000
         amp_state_temp = 0
@@ -97,6 +118,7 @@ class PulseToolObj:
         self.text_box_input.insert('1.0',self.text_input)
         
     def noise_pulse_setup(self):
+        '''Setup for noise pulse. Specifies standard values and sets up the text box.'''
         self.max_amplitude=1000
         self.min_amplitude=0
         self.number_of_noise_samples= self.Tx_samples
@@ -110,6 +132,7 @@ class PulseToolObj:
         self.text_box_input.insert('1.0',self.text_input)
    
     def rect_freq_shift_setup(self):
+        '''Setup for rect pulse. Specifies standard values and sets up the text box.'''
         self.freq_shift = 1000 #in Hz
         amplitude_temp = 1000
         amp_state_temp = 0
@@ -123,6 +146,7 @@ class PulseToolObj:
         self.text_box_input.insert('1.0',self.text_input)
 
     def Button_Calculate_Pulse_Press(self):
+        '''Call the calculations for the selected pulse.'''
         selected = self.pulse_list_box.curselection()
         try:
             match selected[0]:
@@ -137,6 +161,7 @@ class PulseToolObj:
 
 
     def noise_pulse_calculation(self):
+        '''Calculate the noise pulse with the paramters provided by the user. Parameters are parsed from the text in the editable text box.'''
         numbers = re.findall(r"[+-]? *(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?", self.text_box_input.get('1.0',END))
         max_amplitude = float(numbers[0])
         min_amplitude = float(numbers[1])
@@ -157,6 +182,7 @@ class PulseToolObj:
         
         
     def plot_figures(self, amplitudes, phases):
+        '''Plots the time and frequency domain representations of the pulse (channel 1) into the respective figures.'''
         number_of_samples = len(amplitudes)
         #Plot Amplitude of Channel 1
         self.plot_figure_time_domain.clear()
@@ -184,6 +210,7 @@ class PulseToolObj:
         canvas.get_tk_widget().place(x=700, y=350)
 
     def sinc_pulse_calculation(self):
+        '''Calculate the sinc pulse with the paramters provided by the user. Parameters are parsed from the text in the editable text box.'''
         numbers = re.findall(r"[+-]? *(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?", self.text_box_input.get('1.0',END))
         bandwidth = float(numbers[0])
         freq_shift = float(numbers[1])
@@ -216,6 +243,7 @@ class PulseToolObj:
         self.plot_figures(self.amplitudes[0],self.phases[0])
 
     def rect_freq_shift_calculation(self):
+        '''Calculate the rect pulse with the paramters provided by the user. Parameters are parsed from the text in the editable text box.'''
         numbers = re.findall(r"[+-]? *(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?", self.text_box_input.get('1.0',END))
         freq_shift = float(numbers[0])
         self.amplitudes=[0]*self.number_of_channels
@@ -243,12 +271,14 @@ class PulseToolObj:
         self.plot_figures(self.amplitudes[0],self.phases[0])
     
     def Button_Apply_Close_Press(self):
+        '''Applies pulse to STASIS_System object and closes the Pulse Tool GUI.'''
         if len(self.amplitudes)>0:
             STASIS_Control.STASIS_System.Modulator.set_amplitudes_phases_state(self.amplitudes,self.phases,self.states)
             self.WindowMain.destroy()
         
 
 def A_phi2complex(amplitudes,phases):
+    '''Calculates complex numbers from Amplitude and Phase'''
     amplitudes=np.array(amplitudes)
     phases = np.array(phases)
     x=amplitudes*np.exp(1j*np.pi*phases/180)
