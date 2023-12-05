@@ -8,10 +8,12 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import random
 import STASIS_Control
 
-#data = bytes([32, 255, 255, 255])
-#STASIS_Control.STASIS_System.SPI.send_bitstream(data)
-#sleep(1)
-#data = bytes([32, 0, 0, 0])
-#STASIS_Control.STASIS_System.SPI.send_bitstream(data)
-for a in range(1):
-    print(a)
+CB = STASIS_Control.ControlByteObj
+data_reset=bytes([CB.reset,0,0,0])
+data = bytes([CB.clock,0,0,0]) + bytes([0,0,0,0])
+STASIS_Control.STASIS_System.SPI.send_bitstream(data_reset)
+for a in range(1000):
+    STASIS_Control.STASIS_System.SPI.send_bitstream(data)
+    sleep(0.01)
+
+

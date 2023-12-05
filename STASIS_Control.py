@@ -41,7 +41,10 @@ class STASIS_SystemObj:
     def enable_system(self):
         self.SPI.send_bitstream(bytes([128,0,0,0]))
     def setup_system(self):
-        bytestream = self.TimingControl.return_byte_stream() + self.SignalSource.return_byte_stream() + self.Modulator.return_byte_stream()+ bytes([0,0,0,0])
+        self.TimingControl.trigger_off() #Trigger needs to be switched off before programming Modulators, because trigger is used to select adress.
+        bytestream = self.TimingControl.return_byte_stream()
+        self.TimingControl.trigger_on() #Trigger can be switched on again after programming Modulators.
+        bytestream = bytestream + self.SignalSource.return_byte_stream() + self.Modulator.return_byte_stream() + self.TimingControl.return_byte_stream() + bytes([0,0,0,0])
         self.SPI.send_bitstream(bytestream)    
     def disable_system(self):
         self.SPI.send_bitstream(bytes([0,0,0,0]))
@@ -96,7 +99,16 @@ class USB2SPIObj: #Contains all data and methods for USB2SPI hardware.
             Address byte\n
             Data byte 2 (with most significant of 16 bits)\n
             Data byte 1 (with least significant of 16 bits)\n'''
-        self.devA.spiMaster_SingleWrite(bitstream, True)
+        #In the following, the data in bitstream is sliced. This is necessary, as to long streams are cut by the FT4222's driver without notice.
+        max_num_bytes=400
+        stream_length=len(bitstream)
+        number_of_steps=np.ceil(stream_length/max_num_bytes)
+        for a in range(number_of_steps):
+            if (a+1)*max_num_bytes<stream_length:
+                bitstream_send=bitstream[a*max_num_bytes:(a+1)*max_num_bytes]
+            else:
+                bitstream_send=bitstream[a*max_num_bytes:stream_length]
+            self.devA.spiMaster_SingleWrite(bitstream_send, True)
 
 class SignalSourceObj: #Contains all data and methods for Signal Source Board
     '''Contains all data and methods for Signal Source Board'''
@@ -131,6 +143,7 @@ class TimingControlObj: #Contains all data and methods for Timing Control
     con_mode = 0 #Continous Mode or intermittant mode (Tx/Rx)
     mod_res_sel = 0 #Select whether to reset modulators via Tx/Rx (1) or their own counters (0)
     ubl_enable = 1 #Enable unblank
+    trig = 0 #Trigger from clock disabled/enabled
     clock_divider = 100 #Clock Divider for 10 MHz clock.
     counter_Rx = 255 #Rx will last this many clock cycles
     counter_Tx = 255 #Tx will last this many clock cycles
@@ -153,6 +166,12 @@ class TimingControlObj: #Contains all data and methods for Timing Control
     def switch_on(self):
         self.ubl_enable = 1
     
+    def trigger_on(self):
+        self.trig = 1
+
+    def trigger_off(self):
+        self.trig = 0
+    
     def return_byte_stream(self):
         '''Returns list of bytes to be transmitted via SPI interface. 
         The list of bytes provides the correct sequence to program the hardware to the settings in this object.'''
@@ -161,7 +180,7 @@ class TimingControlObj: #Contains all data and methods for Timing Control
         for a in range(4): #Timing Control contains 4 registers.
             match a:
                 case 0: #State Register
-                    data1 = self.con_mode + 2* self.mod_res_sel + 4* self.ubl_enable #First three bits
+                    data1 = self.con_mode + 2* self.mod_res_sel + 4* self.ubl_enable + 8*self.trig #First four bits
                     data2 = 0 #Not used
                 case 1: #Register for Clock Devider
                     data1=self.clock_divider%256

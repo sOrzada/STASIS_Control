@@ -148,7 +148,7 @@ class CalibrateZeroObj:
         try:
             STASIS_Control.STASIS_System.SPI.send_bitstream(bitstream)
             sleep(0.05)
-            STASIS_Control.STASIS_System.SPI.send_bitstream(bitstream_enable_mod+bitstream_enable_mod)
+            STASIS_Control.STASIS_System.SPI.send_bitstream(bitstream_enable_mod+bitstream_enable_mod+bitstream_adress)
             sleep(0.05)
         except:
             print('Error! Could not transmit via SPI.')
