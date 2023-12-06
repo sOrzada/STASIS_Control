@@ -102,7 +102,7 @@ class USB2SPIObj: #Contains all data and methods for USB2SPI hardware.
         #In the following, the data in bitstream is sliced. This is necessary, as to long streams are cut by the FT4222's driver without notice.
         max_num_bytes=400
         stream_length=len(bitstream)
-        number_of_steps=np.ceil(stream_length/max_num_bytes)
+        number_of_steps=int(np.ceil(stream_length/max_num_bytes))
         for a in range(number_of_steps):
             if (a+1)*max_num_bytes<stream_length:
                 bitstream_send=bitstream[a*max_num_bytes:(a+1)*max_num_bytes]
