@@ -14,6 +14,8 @@ import STASIS_Calibration
 import pickle
 from PIL import Image, ImageTk
 
+# This is my first attempt on writing python code. Please be patient with me.
+
 ### Define GUI ###
 
 def start_main_GUI():
