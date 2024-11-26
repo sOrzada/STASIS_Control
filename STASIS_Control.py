@@ -233,9 +233,9 @@ class ModulatorObj: #Contains all data and methods for Modulators
         self.IQoffset = [0]*self.number_of_channels
         for a in range(self.number_of_channels):
             self.IQoffset[a]=[0]*2
-        self.f_name_CalZP=os.path.dirname(__file__) + '/' + config['Calibration']['Calibration_File_Zero_Point']
+        self.f_name_CalZP=os.path.dirname(__file__) + '/' + config['Calibration']['Calibration_File_Zero_Point'] #Get file name for Zero Calibration from Config file.
         try:
-            self.read_IQ_offset()
+            self.read_IQ_offset() #Read the Offset values from thr IQ-Offset file.
         except:
             print('Could not open IQ offset calibration file. Using no offset.')
     
@@ -245,7 +245,7 @@ class ModulatorObj: #Contains all data and methods for Modulators
         with open(self.f_name_CalZP,'r') as f:
             reader = csv.reader(f, delimiter=',')
             a=0
-            for row in reader:
+            for row in reader:  #Read total file row by row. First value is I offset, second value is Q offset.
                 self.IQoffset[a][0]=int(row[0])
                 self.IQoffset[a][1]=int(row[1])
                 a=a+1
