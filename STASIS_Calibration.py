@@ -4,8 +4,11 @@ import STASIS_Control
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import os
+import math
 from PIL import Image, ImageTk
 from time import sleep
+
+U_0dBm = math.sqrt(0.05) #RMS voltage at 0 dBm on 50 Ohms.
 
 class CalibrateZeroObj:
     '''This class is used to calibrate the modulators LO-feedthrough/zero offset.\n
@@ -197,6 +200,9 @@ class CalibrateLinearity1DObj:
         #Digital Value Selector
         self.init_dig_value_select(x_center=150,y_center=180)
 
+        #Initialize Entry Boxes
+        self.init_entry_boxes(x_center=130, y_center=220)
+
         #Initialize Figure for linearity results
         self.Figurelin = Figure(figsize=(5,5), dpi=80)
         self.plotFigurelin = self.Figurelin.add_subplot(111)
@@ -229,7 +235,25 @@ class CalibrateLinearity1DObj:
         Button_prev.place(x=x_center-50,y=y_center,anchor='center')
         self.label_dig_value.place(x=x_center,y=y_center, anchor='center')
         Button_next.place(x=x_center+50,y=y_center, anchor='center')
-    
+
+    def init_entry_boxes(self,x_center,y_center):
+        self.dB_value = IntVar()
+        self.deg_value = IntVar()
+        
+        self.entry_db = Entry(self.WindowMain, width=12, textvariable=self.dB_value)
+        self.entry_db.place(x=x_center,y=y_center-10, anchor=W)
+        label_dB = Label(self.WindowMain, height=1, width=6, text='dB')
+        label_dB.place(x=x_center-60,y=y_center-10, anchor=W)
+        self.entry_degree = Entry(self.WindowMain, width=12, textvariable=self.deg_value)
+        self.entry_degree.place(x=x_center,y=y_center+10, anchor=W)
+        label_deg = Label(self.WindowMain, height=1, width=6, text='°')
+        label_deg.place(x=x_center-60,y=y_center+10,anchor=W)
+        Button_entry= Button(self.WindowMain, width=5,height=2, text='Apply', command=lambda: self.apply_entry())
+        Button_entry.place(x=x_center+110, y=y_center, anchor=CENTER)
+        
+    def apply_entry(self):
+        self
+
     def dig_value_select(self,a):
         self.dig_value=self.dig_value+a
         if self.dig_value<0:
@@ -269,11 +293,17 @@ class CalibrateLinearity1DObj:
         mode=self.Amp_Mode.get()
         dig_value=self.dig_value
         self.plotFigurelin.clear()
-        
+
+        #For convenience, change axis:
+        if mode==0:
+            U_max=70
+        else:
+            U_max=270
+
         self.plotFigurelin.scatter(self.Cal1D[ch,mode,:,0],self.Cal1D[ch,mode,:,1], marker='x')
         self.plotFigurelin.scatter(self.Cal1D[ch,mode,dig_value,0],self.Cal1D[ch,mode,dig_value,1], marker='o')
 
-        self.plotFigurelin.axis([0,pow(2,14)-1,0,270])
+        self.plotFigurelin.axis([0,pow(2,14)-1,0,U_max])
         self.plotFigurelin.set_xlabel('Digital Value')
         self.plotFigurelin.set_ylabel('Output in V')
         self.plotFigurelin.set_title('Channel ' + str(ch) + ', Mode: ' +str(mode))
@@ -282,7 +312,33 @@ class CalibrateLinearity1DObj:
     
     def update(self):
         '''Calls functions for updating the figure and setting the Modulators. (self.plotFigure() and self.set_Modulators)'''
+        ch=self.active_channel
+        mode=self.Amp_Mode.get()
+        dig_value=self.dig_value
+        self.plotFigurelin.clear()
+        self.entry_degree.delete('0',END)
+        self.entry_db.delete('0',END)
+
+        if dig_value==0:
+            self.entry_db.insert('0','-inf')
+            self.entry_degree.insert('0','n.a.')
+            self.entry_db.config(state='readonly')
+            self.entry_degree.config(state='readonly')
+        else:
+            self.entry_db.config(state='normal')
+            self.entry_degree.config(state='normal')
+            self.entry_degree.delete('0',END)
+            self.entry_db.delete('0',END)
+
+        current_dB = 20*math.log10((self.Cal1D[ch,mode,dig_value,1]+0.000001)/U_0dBm)
+        current_deg = self.Cal1D[ch,mode,dig_value,2]
+
+        
+        self.entry_db.insert('0',str(current_dB))
+        self.entry_degree.insert('0',str(current_deg))
+
         self.plotFigure()
+
         
         #self.set_Modulators()
 
@@ -290,10 +346,7 @@ class CalibrateLinearity1DObj:
         '''Function for closing the calibration Window. Also calls the "write_IQ_offset" method of the Modulator-Object.'''
         
         #STASIS_Control.STASIS_System.Modulator.IQoffset = self.IQoffset
-        #STASIS_Control.STASIS_System.Modulator.write_IQ_offset()
+        STASIS_Control.STASIS_System.Modulator.write_1D_Cal()
         self.WindowMain.destroy()
         pass    
 
-#CalGUI = CalibrateZeroObj()
-#CalGUI.openGUI()
-#CalGUI.mainloop()

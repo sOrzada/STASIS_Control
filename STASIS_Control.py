@@ -240,7 +240,7 @@ class ModulatorObj: #Contains all data and methods for Modulators
             print('Could not open IQ offset calibration file. Using no offset.')
         
         #Initialize Variables for Linearity Calibration
-        self.number_of_1D_samples=10
+        self.number_of_1D_samples=12
         Dig_Values = [0, 2000, 4000, 6000, 8000, 9000, 10000, 11000, 12000, 13000, 14000, 15000]
         self.Cal1D = np.zeros((self.number_of_channels,2,self.number_of_1D_samples,3)) #Number of Channels, Number of power modes (high/low), number of test samples, 3 (digital value, voltage, phase)
         self.voltageHigh=int(config['Amplifiers']['max_amplitude_high'])
@@ -253,7 +253,7 @@ class ModulatorObj: #Contains all data and methods for Modulators
 
         self.f_name_Cal1D=os.path.dirname(__file__) + '/' + config['Calibration']['Calibration_File_1D'] #Get file name for Zero Calibration from Config file.
         try:
-            self.read_1D_Cal() #Read the Offset values from thr IQ-Offset file.
+            self.read_1D_Cal() #Read the 1D linearity calibration data from file.
         except:
             print('Could not open 1D Linearity calibration file. Using generic data.')
     
