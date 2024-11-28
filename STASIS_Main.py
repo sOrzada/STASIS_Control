@@ -290,7 +290,11 @@ def calibrateSystemZero():
     update_status_text()
 
 def calibrateSystemLin1D():
-    pass
+    cal_lin1D.openGUI()
+    cal_lin1D.WindowMain.grab_set()
+    cal_lin1D.WindowMain.wait_window(cal_lin1D.WindowMain)
+    #MAINWINDOW.deiconify()
+    update_status_text()
 
 def update_status_text():
     text_box.config(state=NORMAL)
@@ -383,6 +387,7 @@ STASIS_Control.STASIS_System.Modulator.set_amplitudes_phases_state(amplitudes,ph
 ### Start GUI ###
 p=STASIS_PulseTool.PulseToolObj()
 cal_zero=STASIS_Calibration.CalibrateZeroObj()
+cal_lin1D=STASIS_Calibration.CalibrateLinearity1DObj()
 MAINWINDOW = start_main_GUI()
 
 

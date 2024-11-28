@@ -238,6 +238,24 @@ class ModulatorObj: #Contains all data and methods for Modulators
             self.read_IQ_offset() #Read the Offset values from thr IQ-Offset file.
         except:
             print('Could not open IQ offset calibration file. Using no offset.')
+        
+        #Initialize Variables for Linearity Calibration
+        self.number_of_1D_samples=10
+        Dig_Values = [0, 2000, 4000, 6000, 8000, 9000, 10000, 11000, 12000, 13000, 14000, 15000]
+        self.Cal1D = np.zeros((self.number_of_channels,2,self.number_of_1D_samples,3)) #Number of Channels, Number of power modes (high/low), number of test samples, 3 (digital value, voltage, phase)
+        self.voltageHigh=int(config['Amplifiers']['max_amplitude_high'])
+        self.voltageLow=int(config['Amplifiers']['max_amplitude_low'])
+        for a in range(self.number_of_1D_samples): #Define standard values for Calibration in case no calibration file is found.
+            self.Cal1D[:,:,a,0] = Dig_Values[a] #Generic digital values
+            self.Cal1D[:,0,a,1] = self.voltageLow /15000 * Dig_Values[a] #generic voltage values low power mode
+            self.Cal1D[:,1,a,1] = self.voltageHigh/15000 * Dig_Values[a] #generic voltage values high power mode
+            self.Cal1D[:,:,:,2] = 0 #No phase error
+
+        self.f_name_Cal1D=os.path.dirname(__file__) + '/' + config['Calibration']['Calibration_File_1D'] #Get file name for Zero Calibration from Config file.
+        try:
+            self.read_1D_Cal() #Read the Offset values from thr IQ-Offset file.
+        except:
+            print('Could not open 1D Linearity calibration file. Using generic data.')
     
     
     def read_IQ_offset(self):
@@ -249,13 +267,20 @@ class ModulatorObj: #Contains all data and methods for Modulators
                 self.IQoffset[a][0]=int(row[0])
                 self.IQoffset[a][1]=int(row[1])
                 a=a+1
+    def read_1D_Cal(self):
+        '''Reads the 1D calibration data file which is specified in the config file.'''
+        self.Cal1D = np.load(self.f_name_Cal1D)
 
     def write_IQ_offset(self):
         '''Saves the current IQ offset to the calibration file which is specified in the config file.'''
         with open(self.f_name_CalZP, 'w', newline='') as csvfile:
             writer = csv.writer(csvfile, delimiter=',')
             writer.writerows(self.IQoffset)
-        
+
+    def write_1D_Cal(self):
+        '''Saves the current 1D calibration data to file specified in config file.'''
+        np.save(self.f_name_Cal1D,self.Cal1D)
+
     def set_amplitudes_phases_state(self,amplitudes_in,phases_in,state_in):
         '''Sets the digital I and Q values to achieve the amplitudes and phases specified in the input variables.\n
         This includes normalizing according to the calibration.'''
