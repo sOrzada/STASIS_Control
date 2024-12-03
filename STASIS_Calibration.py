@@ -165,10 +165,6 @@ class CalibrateLinearity1DObj:
         self.Cal1D = STASIS_Control.STASIS_System.Modulator.Cal1D       #Load 1D Calibration from Modulators.
         self.dig_value = 0  #Always start with the first digital value (which is 0, so no danger to components or people)
         self.max_dig_value = STASIS_Control.STASIS_System.Modulator.number_of_1D_samples #Maximum number of 1D samples.
-        #Initiate Amplitudes, Phases and States(for the purpose of this Calibration step, the letter is unimportant, but needs to be set anyway)
-        self.amplitudes = list([0])*self.number_of_channels
-        self.phases = [0]*self.number_of_channels
-        self.states = [0]*self.number_of_channels
 
     def openGUI(self):
         '''Prepares and Opens the GUI or this Class Object.'''
@@ -209,16 +205,42 @@ class CalibrateLinearity1DObj:
         self.canvasFigurelin = FigureCanvasTkAgg(self.Figurelin, master=self.WindowMain)
         self.canvasFigurelin.get_tk_widget().place(x=500, y=250, anchor='center')
 
-        #Update
-        self.update()
-
-        #Set Timings for Calibration: 10% Duty Cycle, 1ms pulses
+        #Set Timings for Calibration: 10% Duty Cycle, 1ms pulses. This should be long enough for triggered measurements.
         STASIS_Control.STASIS_System.disable_system()
         STASIS_Control.STASIS_System.TimingControl.clock_divider=1000
         STASIS_Control.STASIS_System.TimingControl.counter_Tx=10
         STASIS_Control.STASIS_System.TimingControl.counter_Rx=90
         STASIS_Control.STASIS_System.TimingControl.set_alternating_mode()
+        data=STASIS_Control.STASIS_System.TimingControl.return_byte_stream()
+        STASIS_Control.STASIS_System.SPI.send_bitstream(data)
+        #Set RF source to external
         STASIS_Control.STASIS_System.SignalSource.set_external()
+        data=STASIS_Control.STASIS_System.SignalSource.return_byte_stream()
+        STASIS_Control.STASIS_System.SPI.send_bitstream(data)
+        #Set modulators to zero point transmission in low power mode
+        STASIS_Control.STASIS_System.Modulator.set_amplitudes_phases_state([0]*self.number_of_channels,[0]*self.number_of_channels,[0]*self.number_of_channels)
+        self.set_Modulators()
+        STASIS_Control.STASIS_System.enable_system() #Here the system is in a safe state and can be started.
+
+        #Update
+        self.update()
+    
+    def set_Modulators(self):
+        '''Updates the modulators.'''
+        CB=STASIS_Control.ControlByteObj 
+        bitstream=STASIS_Control.STASIS_System.Modulator.return_byte_stream()
+        start_adress = STASIS_Control.STASIS_System.Modulator.start_address
+        bitstream_adress = bytes([CB.enable, start_adress-1+self.active_channel,0,0]) #sending this word as final word lets the active channels LED light up and sets the system transmit.
+        bitstream_enable_mod = bytes([CB.clock,0,0,0])
+        bitstream = bitstream +bitstream_enable_mod+ bitstream_adress
+        try:
+            STASIS_Control.STASIS_System.SPI.send_bitstream(bitstream)
+            sleep(0.05)
+            STASIS_Control.STASIS_System.SPI.send_bitstream(bitstream_enable_mod+bitstream_enable_mod+bitstream_adress)
+            sleep(0.05)
+        except:
+            print('Error! Could not transmit via SPI.')
+            sleep(0.05)
 
     def init_radiobuttons(self, x_start, y_start):
         self.Amp_Mode=IntVar()
@@ -237,8 +259,8 @@ class CalibrateLinearity1DObj:
         Button_next.place(x=x_center+50,y=y_center, anchor='center')
 
     def init_entry_boxes(self,x_center,y_center):
-        self.dB_value = IntVar()
-        self.deg_value = IntVar()
+        self.dB_value = StringVar()
+        self.deg_value = StringVar()
         
         self.entry_db = Entry(self.WindowMain, width=12, textvariable=self.dB_value)
         self.entry_db.place(x=x_center,y=y_center-10, anchor=W)
@@ -252,16 +274,25 @@ class CalibrateLinearity1DObj:
         Button_entry.place(x=x_center+110, y=y_center, anchor=CENTER)
         
     def apply_entry(self):
-        self
+        '''Applies the entry from the entry boxes and writes them into the Cal1D variable.'''
+        if self.dig_value>0: #Only allow changes for digital values other than 0
+            voltage=pow(10,float(self.dB_value.get())/20)*U_0dBm
+            angle=float(self.deg_value.get())
+            self.Cal1D[self.active_channel-1,self.Amp_Mode.get(),self.dig_value,1]=voltage
+            self.Cal1D[self.active_channel-1,self.Amp_Mode.get(),self.dig_value,2]=angle
+            self.Cal1D[self.active_channel-1,self.Amp_Mode.get(),0,2]=self.Cal1D[self.active_channel-1,self.Amp_Mode.get(),1,2] #We need to make sure that there is no change in angle between 0V and the smallest measured voltage.
+        self.update()
+
 
     def dig_value_select(self,a):
+        '''Selects a digital value from a pre-defined set. These are the digital values added on top of the zero point calibration.'''
         self.dig_value=self.dig_value+a
         if self.dig_value<0:
             self.dig_value=0
         if self.dig_value>self.max_dig_value-1:
             self.dig_value=self.max_dig_value-1
         
-        self.label_dig_value.config(text=str(int(self.Cal1D[self.active_channel,self.Amp_Mode.get(),self.dig_value,0])))
+        self.label_dig_value.config(text=str(int(self.Cal1D[self.active_channel-1,self.Amp_Mode.get(),self.dig_value,0])))
         self.update()
 
     def sel(self):
@@ -289,7 +320,7 @@ class CalibrateLinearity1DObj:
 
     def plotFigure(self):
         '''Plots the figure for System linearity'''
-        ch=self.active_channel
+        ch=self.active_channel-1
         mode=self.Amp_Mode.get()
         dig_value=self.dig_value
         self.plotFigurelin.clear()
@@ -306,18 +337,32 @@ class CalibrateLinearity1DObj:
         self.plotFigurelin.axis([0,pow(2,14)-1,0,U_max])
         self.plotFigurelin.set_xlabel('Digital Value')
         self.plotFigurelin.set_ylabel('Output in V')
-        self.plotFigurelin.set_title('Channel ' + str(ch) + ', Mode: ' +str(mode))
+        self.plotFigurelin.set_title('Channel ' + str(ch+1) + ', Mode: ' +str(mode))
         self.Figurelin.canvas.draw()
         
     
     def update(self):
         '''Calls functions for updating the figure and setting the Modulators. (self.plotFigure() and self.set_Modulators)'''
-        ch=self.active_channel
+        I_values=[0]*self.number_of_channels
+        Q_values=[0]*self.number_of_channels
+        
+        for a in range(self.number_of_channels): #Set all values for I and Q to calibrated zero, to make sure no transmit happens.
+            I_values[a]=self.IQoffset[a][0]
+            Q_values[a]=self.IQoffset[a][1]
+        
+
+        ch=self.active_channel-1
         mode=self.Amp_Mode.get()
         dig_value=self.dig_value
         self.plotFigurelin.clear()
         self.entry_degree.delete('0',END)
         self.entry_db.delete('0',END)
+
+        I_values[ch]=I_values[ch]+dig_value #For measurement, add the current digital value to zero point.
+
+        STASIS_Control.STASIS_System.Modulator.I_values=I_values
+        STASIS_Control.STASIS_System.Modulator.Q_values=Q_values
+        self.set_Modulators() #Set the Modulators to the values just provided.
 
         if dig_value==0:
             self.entry_db.insert('0','-inf')
@@ -343,9 +388,9 @@ class CalibrateLinearity1DObj:
         #self.set_Modulators()
 
     def saveClose(self):
-        '''Function for closing the calibration Window. Also calls the "write_IQ_offset" method of the Modulator-Object.'''
-        
-        #STASIS_Control.STASIS_System.Modulator.IQoffset = self.IQoffset
+        '''Function for closing the calibration Window. Also calls the "write_1D_Cal" method of the Modulator-Object and disables the system.'''
+        STASIS_Control.STASIS_System.disable_system()
+        STASIS_Control.STASIS_System.Modulator.Cal1D=self.Cal1D #Write the new calibration data into the Modulator.
         STASIS_Control.STASIS_System.Modulator.write_1D_Cal()
         self.WindowMain.destroy()
         pass    
