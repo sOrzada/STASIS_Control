@@ -1,6 +1,7 @@
 '''Classes for Hardware Modules of STASIS system are defined and initialized here.'''
 import math
 import numpy as np
+import scipy
 import ft4222
 from ft4222.SPI import Cpha, Cpol
 from ft4222.SPIMaster import Mode, Clock, SlaveSelect
@@ -298,23 +299,40 @@ class ModulatorObj: #Contains all data and methods for Modulators
                 self.Q_values[a]=[0]*self.counter_max[a]
                 self.Amp_state[a]=[0]*self.counter_max[a]
                 for b in range(self.counter_max[a]):
-                    cIQ=self.calcIQ(self.amplitudes[a][b],self.phases[a][b],a)
+                    cIQ=self.calcIQ(self.amplitudes[a][b],self.phases[a][b],a,state_in[a][b])
                     self.I_values[a][b]=int(np.real(cIQ))
                     self.Q_values[a][b]=int(np.imag(cIQ))
                     self.Amp_state[a][b]=state_in[a][b]
             else:
                 self.counter_max[a]=1
-                cIQ=self.calcIQ(self.amplitudes[a],self.phases[a],a)
+                cIQ=self.calcIQ(self.amplitudes[a],self.phases[a],a,state_in[a])
                 self.I_values[a]=int(np.real(cIQ))
                 self.Q_values[a]=int(np.imag(cIQ))
                 self.Amp_state[a]=state_in[a]
 
-    def calcIQ(self,amp,ph,channel): #Calculate digital values including calibration
+    def calcIQ(self,amp,ph,channel,mode): #Calculate digital values including calibration
         '''This function translates a value for amplitude and phase into a complex I/Q value including normalization according to the calibration.\n
-        "amp" is a single amplitude.\n
-        "phase is a single phase.\n
-        "channel" specifies for which channel this sample is. This is necessary to use the correct calibration values.'''
-        IQ=(pow(2,13)-1 +self.IQoffset[channel][0])+ 1j*(pow(2,13)-1 +self.IQoffset[channel][1]) + amp*np.exp(1j*np.pi/180*ph) #Only includes offset correction. ToDo: include non-linearity! ToDo: include state!!
+        "amp" is a single amplitude in Volts.\n
+        "phase is a single phase in degrees.\n
+        "channel" specifies for which channel this sample is. This is necessary to use the correct calibration values.\n
+        "mode" specifies which state the amplifier is in.'''
+        # Order of operation for correction:
+        # 1. Calculate corrected amplitude (convert from Volts to digital value with pchip)
+        # 2. Calculate correct angle in IQ-space
+        # 3. Add offset
+
+        #Calculate correct digital amplitude for required output voltage
+        xi=self.Cal1D[channel,mode,:,1]
+        yi=self.Cal1D[channel,mode,:,0]
+        amp_digital = scipy.interpolate.pchip_interpolate(xi,yi,amp) #Corrected digital amplitude in arbitrary units.
+        
+        #Calculate phase correction for digital amplitude
+        xi=self.Cal1D[channel,mode,:,0]
+        yi=self.Cal1D[channel,mode,:,2]
+        phase_offset = scipy.interpolate.pchip_interpolate(xi,yi,amp_digital)
+        ph=ph-phase_offset #ToDo: Check whether sign is correct.
+
+        IQ=(pow(2,13)-1 +self.IQoffset[channel][0])+ 1j*(pow(2,13)-1 +self.IQoffset[channel][1]) + amp_digital*np.exp(1j*np.pi/180*ph) #Only includes offset correction. ToDo: include non-linearity! ToDo: include state!!
         return IQ
         
         
