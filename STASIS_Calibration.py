@@ -130,9 +130,10 @@ class CalibrateZeroObj:
         self.plotFigureOffset.scatter(0,0, marker='o')
         self.plotFigureOffset.scatter(self.IQoffset[a-1][1],self.IQoffset[a-1][0], marker='x')
         self.plotFigureOffset.axis([-128,128,-128,128])
-        self.plotFigureOffset.set_xlabel('I')
-        self.plotFigureOffset.set_ylabel('Q')
+        self.plotFigureOffset.set_xlabel('I offset')
+        self.plotFigureOffset.set_ylabel('Q offset')
         self.plotFigureOffset.set_title('Channel ' + str(self.active_channel))
+        self.figureOffset.tight_layout()
         self.canvasFigureOffset.draw()
 
     def update(self):
@@ -171,6 +172,11 @@ class CalibrateLinearity1DObj:
 
     def openGUI(self):
         '''Prepares and Opens the GUI or this Class Object.'''
+        #Preparations for safety:
+        self.active_channel = 1 #Always start with first channel when user activates GUI.
+        self.dig_value = 0  #Always start with the first digital value (which is 0, so no danger to components or people)
+        
+        #Open Main Window
         self.WindowMain = Toplevel()
         self.WindowMain.iconbitmap(os.path.dirname(__file__) + '\images\S_square_32x32.ico')
         self.WindowMain.title('Linearity Calibration of Amplifiers')
@@ -209,11 +215,11 @@ class CalibrateLinearity1DObj:
         self.canvasFigurelin = FigureCanvasTkAgg(self.Figurelin, master=self.WindowMain)
         self.canvasFigurelin.get_tk_widget().place(x=500, y=250, anchor='center')
 
-        #Set Timings for Calibration: 10% Duty Cycle, 1ms pulses. This should be long enough for triggered measurements.
+        #Set Timings for Calibration: 1% Duty Cycle, 1ms pulses. This should be long enough for triggered measurements.
         STASIS_Control.STASIS_System.disable_system()
         STASIS_Control.STASIS_System.TimingControl.clock_divider=1000
         STASIS_Control.STASIS_System.TimingControl.counter_Tx=10
-        STASIS_Control.STASIS_System.TimingControl.counter_Rx=90
+        STASIS_Control.STASIS_System.TimingControl.counter_Rx=990
         STASIS_Control.STASIS_System.TimingControl.set_alternating_mode()
         data=STASIS_Control.STASIS_System.TimingControl.return_byte_stream()
         try:
@@ -239,6 +245,7 @@ class CalibrateLinearity1DObj:
         self.update()
     
     def init_radiobuttons(self, x_start, y_start):
+        '''Initializes the radio buttons for selecting amplifier state.'''
         self.Amp_Mode=IntVar()
         R1= Radiobutton(self.WindowMain, text='Low Power Mode', variable=self.Amp_Mode, value=0, command=self.sel)
         R1.place(x=x_start,y=y_start,anchor=W)
@@ -255,6 +262,7 @@ class CalibrateLinearity1DObj:
         Button_next.place(x=x_center+50,y=y_center, anchor='center')
 
     def init_entry_boxes(self,x_center,y_center):
+        '''Initializes the entry boxes for amplitude and phase inputs'''
         self.dB_value = StringVar()
         self.deg_value = StringVar()
         
@@ -301,6 +309,7 @@ class CalibrateLinearity1DObj:
         self.update()
 
     def sel(self):
+        
         self.update()
 
     def channelselect(self,a): #Select channel with buttons and stay within actual channel count
@@ -316,35 +325,40 @@ class CalibrateLinearity1DObj:
 
     def plotFigure(self):
         '''Plots the figure for System linearity'''
+
+        color_highlight='0'  #Color for highlighting current point of measurement
+        color_amp = 'tab:blue' #Color for amplitude plot
+        color_angle = 'tab:red' #Color for phase plot
+
         ch=self.active_channel-1
         mode=self.Amp_Mode.get()
         dig_value=self.dig_value
         self.plotFigurelin.clear()
         self.plotFigureAngle.clear()
 
-        #For convenience, change axis:
+        #For convenience of reader, change y axis of plot:
         if mode==0:
             U_max=70
         else:
             U_max=270
         
-        x=range(0,7500,20)
+        x=range(0,7500,20) #Range for possible digital values (<2^13-1)
 
         #Plot interpolated values of Amplitude
         xi=self.Cal1D[ch,mode,:,0]
         yi=self.Cal1D[ch,mode,:,1]
         y=scipy.interpolate.pchip_interpolate(xi,yi,x)
-        self.plotFigurelin.plot(x,y,color='tab:blue')
+        self.plotFigurelin.plot(x,y,color=color_amp)
         #Plot interpolated values of Phase
         xi=self.Cal1D[ch,mode,:,0]
         yi=self.Cal1D[ch,mode,:,2]
         y=scipy.interpolate.pchip_interpolate(xi,yi,x)
-        self.plotFigureAngle.plot(x,y,color='tab:red')
+        self.plotFigureAngle.plot(x,y,color=color_angle)
 
-        self.plotFigurelin.scatter(self.Cal1D[ch,mode,:,0],self.Cal1D[ch,mode,:,1], color='tab:blue', marker='x')
-        self.plotFigurelin.scatter(self.Cal1D[ch,mode,dig_value,0],self.Cal1D[ch,mode,dig_value,1],color='tab:green', marker='o')
-        self.plotFigureAngle.scatter(self.Cal1D[ch,mode,:,0],self.Cal1D[ch,mode,:,2],color='tab:red',marker='*' )
-        self.plotFigureAngle.scatter(self.Cal1D[ch,mode,dig_value,0],self.Cal1D[ch,mode,dig_value,2],color='tab:green', marker='o')
+        self.plotFigurelin.scatter(self.Cal1D[ch,mode,:,0],self.Cal1D[ch,mode,:,1], color=color_amp, marker='x')
+        self.plotFigurelin.scatter(self.Cal1D[ch,mode,dig_value,0],self.Cal1D[ch,mode,dig_value,1],color=color_highlight, marker='o')
+        self.plotFigureAngle.scatter(self.Cal1D[ch,mode,:,0],self.Cal1D[ch,mode,:,2],color=color_angle,marker='*' )
+        self.plotFigureAngle.scatter(self.Cal1D[ch,mode,dig_value,0],self.Cal1D[ch,mode,dig_value,2],color=color_highlight, marker='o')
         self.plotFigureAngle.set_ylim(-180,180)
         
         self.plotFigurelin.axis([0,pow(2,13)-1,0,U_max])
@@ -417,9 +431,6 @@ class CalibrateLinearity1DObj:
         self.entry_degree.insert('0',str(current_deg))
 
         self.plotFigure()
-
-        
-        self.set_Modulators()
 
     def saveClose(self):
         '''Function for closing the calibration Window. Also calls the "write_1D_Cal" method of the Modulator-Object and disables the system.'''
