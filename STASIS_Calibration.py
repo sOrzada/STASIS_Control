@@ -1,10 +1,13 @@
 '''GUIs for calibration of STASIS System.'''
 from tkinter import *
+
+import scipy.interpolate
 import STASIS_Control
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import os
 import math
+import scipy
 from PIL import Image, ImageTk
 from time import sleep
 
@@ -201,7 +204,8 @@ class CalibrateLinearity1DObj:
 
         #Initialize Figure for linearity results
         self.Figurelin = Figure(figsize=(5,5), dpi=80)
-        self.plotFigurelin = self.Figurelin.add_subplot(111)
+        self.plotFigurelin = self.Figurelin.add_subplot(111) #Axes for Amplitude
+        self.plotFigureAngle= self.plotFigurelin.twinx() #Axes for Phase
         self.canvasFigurelin = FigureCanvasTkAgg(self.Figurelin, master=self.WindowMain)
         self.canvasFigurelin.get_tk_widget().place(x=500, y=250, anchor='center')
 
@@ -212,36 +216,28 @@ class CalibrateLinearity1DObj:
         STASIS_Control.STASIS_System.TimingControl.counter_Rx=90
         STASIS_Control.STASIS_System.TimingControl.set_alternating_mode()
         data=STASIS_Control.STASIS_System.TimingControl.return_byte_stream()
-        STASIS_Control.STASIS_System.SPI.send_bitstream(data)
+        try:
+            STASIS_Control.STASIS_System.SPI.send_bitstream(data)
+        except:
+            print('Error: Could not transmit via SPI')
         #Set RF source to external
         STASIS_Control.STASIS_System.SignalSource.set_external()
         data=STASIS_Control.STASIS_System.SignalSource.return_byte_stream()
-        STASIS_Control.STASIS_System.SPI.send_bitstream(data)
+        try:
+            STASIS_Control.STASIS_System.SPI.send_bitstream(data)
+        except:
+            print('Error: Could not transmit via SPI')
         #Set modulators to zero point transmission in low power mode
         STASIS_Control.STASIS_System.Modulator.set_amplitudes_phases_state([0]*self.number_of_channels,[0]*self.number_of_channels,[0]*self.number_of_channels)
         self.set_Modulators()
-        STASIS_Control.STASIS_System.enable_system() #Here the system is in a safe state and can be started.
+        try:
+            STASIS_Control.STASIS_System.enable_system() #Here the system is in a safe state and can be started.
+        except:
+            print('Error: Could not transmit via SPI!')
 
         #Update
         self.update()
     
-    def set_Modulators(self):
-        '''Updates the modulators.'''
-        CB=STASIS_Control.ControlByteObj 
-        bitstream=STASIS_Control.STASIS_System.Modulator.return_byte_stream()
-        start_adress = STASIS_Control.STASIS_System.Modulator.start_address
-        bitstream_adress = bytes([CB.enable, start_adress-1+self.active_channel,0,0]) #sending this word as final word lets the active channels LED light up and sets the system transmit.
-        bitstream_enable_mod = bytes([CB.clock,0,0,0])
-        bitstream = bitstream +bitstream_enable_mod+ bitstream_adress
-        try:
-            STASIS_Control.STASIS_System.SPI.send_bitstream(bitstream)
-            sleep(0.05)
-            STASIS_Control.STASIS_System.SPI.send_bitstream(bitstream_enable_mod+bitstream_enable_mod+bitstream_adress)
-            sleep(0.05)
-        except:
-            print('Error! Could not transmit via SPI.')
-            sleep(0.05)
-
     def init_radiobuttons(self, x_start, y_start):
         self.Amp_Mode=IntVar()
         R1= Radiobutton(self.WindowMain, text='Low Power Mode', variable=self.Amp_Mode, value=0, command=self.sel)
@@ -272,7 +268,16 @@ class CalibrateLinearity1DObj:
         label_deg.place(x=x_center-60,y=y_center+10,anchor=W)
         Button_entry= Button(self.WindowMain, width=5,height=2, text='Apply', command=lambda: self.apply_entry())
         Button_entry.place(x=x_center+110, y=y_center, anchor=CENTER)
-        
+
+    def channelSelectInit(self, x_center, y_center): #Initialize Buttons and Label for Channel selection
+        '''Initializes the channel selection interface at the coordinates specified by x_center and y_center.'''
+        Button_prev = Button(self.WindowMain, width=3,height=1, text='<', command=lambda: self.channelselect(-1))
+        Button_next = Button(self.WindowMain, width=3,height=1, text='>', command=lambda: self.channelselect(+1))
+        self.label_channel = Label(self.WindowMain, height=1, width=6, text='Ch ' + str(self.active_channel), relief='sunken', bg='white')
+        Button_prev.place(x=x_center-50,y=y_center,anchor='center')
+        self.label_channel.place(x=x_center,y=y_center, anchor='center')
+        Button_next.place(x=x_center+50,y=y_center, anchor='center')
+
     def apply_entry(self):
         '''Applies the entry from the entry boxes and writes them into the Cal1D variable.'''
         if self.dig_value>0: #Only allow changes for digital values other than 0
@@ -298,15 +303,6 @@ class CalibrateLinearity1DObj:
     def sel(self):
         self.update()
 
-    def channelSelectInit(self, x_center, y_center): #Initialize Buttons and Label for Channel selection
-        '''Initializes the channel selection interface at the coordinates specified by x_center and y_center.'''
-        Button_prev = Button(self.WindowMain, width=3,height=1, text='<', command=lambda: self.channelselect(-1))
-        Button_next = Button(self.WindowMain, width=3,height=1, text='>', command=lambda: self.channelselect(+1))
-        self.label_channel = Label(self.WindowMain, height=1, width=6, text='Ch ' + str(self.active_channel), relief='sunken', bg='white')
-        Button_prev.place(x=x_center-50,y=y_center,anchor='center')
-        self.label_channel.place(x=x_center,y=y_center, anchor='center')
-        Button_next.place(x=x_center+50,y=y_center, anchor='center')
-
     def channelselect(self,a): #Select channel with buttons and stay within actual channel count
         '''Selects a channel and makes sure you stay within actual channel count.'''
         self.dig_value_select(-10000) #Reset to 0 output for safety. User might forget to plug cable!
@@ -324,22 +320,58 @@ class CalibrateLinearity1DObj:
         mode=self.Amp_Mode.get()
         dig_value=self.dig_value
         self.plotFigurelin.clear()
+        self.plotFigureAngle.clear()
 
         #For convenience, change axis:
         if mode==0:
             U_max=70
         else:
             U_max=270
-
-        self.plotFigurelin.scatter(self.Cal1D[ch,mode,:,0],self.Cal1D[ch,mode,:,1], marker='x')
-        self.plotFigurelin.scatter(self.Cal1D[ch,mode,dig_value,0],self.Cal1D[ch,mode,dig_value,1], marker='o')
-
-        self.plotFigurelin.axis([0,pow(2,14)-1,0,U_max])
-        self.plotFigurelin.set_xlabel('Digital Value')
-        self.plotFigurelin.set_ylabel('Output in V')
-        self.plotFigurelin.set_title('Channel ' + str(ch+1) + ', Mode: ' +str(mode))
-        self.Figurelin.canvas.draw()
         
+        x=range(0,7500,20)
+
+        #Plot interpolated values of Amplitude
+        xi=self.Cal1D[ch,mode,:,0]
+        yi=self.Cal1D[ch,mode,:,1]
+        y=scipy.interpolate.pchip_interpolate(xi,yi,x)
+        self.plotFigurelin.plot(x,y,color='tab:blue')
+        #Plot interpolated values of Phase
+        xi=self.Cal1D[ch,mode,:,0]
+        yi=self.Cal1D[ch,mode,:,2]
+        y=scipy.interpolate.pchip_interpolate(xi,yi,x)
+        self.plotFigureAngle.plot(x,y,color='tab:red')
+
+        self.plotFigurelin.scatter(self.Cal1D[ch,mode,:,0],self.Cal1D[ch,mode,:,1], color='tab:blue', marker='x')
+        self.plotFigurelin.scatter(self.Cal1D[ch,mode,dig_value,0],self.Cal1D[ch,mode,dig_value,1],color='tab:green', marker='o')
+        self.plotFigureAngle.scatter(self.Cal1D[ch,mode,:,0],self.Cal1D[ch,mode,:,2],color='tab:red',marker='*' )
+        self.plotFigureAngle.scatter(self.Cal1D[ch,mode,dig_value,0],self.Cal1D[ch,mode,dig_value,2],color='tab:green', marker='o')
+        self.plotFigureAngle.set_ylim(-180,180)
+        
+        self.plotFigurelin.axis([0,pow(2,13)-1,0,U_max])
+        self.plotFigurelin.set_xlabel('Digital Value')
+        self.plotFigurelin.set_ylabel('Output in V',color='tab:blue')
+        self.plotFigureAngle.set_ylabel('Phase in °',color='tab:red')
+        self.plotFigureAngle.yaxis.set_label_position('right')
+        self.plotFigurelin.set_title('Channel ' + str(ch+1) + ', Mode: ' +str(mode))
+        self.Figurelin.tight_layout()
+        self.Figurelin.canvas.draw()
+
+    def set_Modulators(self):
+        '''Updates the modulators.'''
+        CB=STASIS_Control.ControlByteObj 
+        bitstream=STASIS_Control.STASIS_System.Modulator.return_byte_stream()
+        start_adress = STASIS_Control.STASIS_System.Modulator.start_address
+        bitstream_adress = bytes([CB.enable, start_adress-1+self.active_channel,0,0]) #sending this word as final word lets the active channels LED light up and sets the system transmit.
+        bitstream_enable_mod = bytes([CB.clock,0,0,0])
+        bitstream = bitstream +bitstream_enable_mod+ bitstream_adress
+        try:
+            STASIS_Control.STASIS_System.SPI.send_bitstream(bitstream)
+            sleep(0.05)
+            STASIS_Control.STASIS_System.SPI.send_bitstream(bitstream_enable_mod+bitstream_enable_mod+bitstream_adress)
+            sleep(0.05)
+        except:
+            print('Error! Could not transmit via SPI.')
+            sleep(0.005)
     
     def update(self):
         '''Calls functions for updating the figure and setting the Modulators. (self.plotFigure() and self.set_Modulators)'''
@@ -347,8 +379,8 @@ class CalibrateLinearity1DObj:
         Q_values=[0]*self.number_of_channels
         
         for a in range(self.number_of_channels): #Set all values for I and Q to calibrated zero, to make sure no transmit happens.
-            I_values[a]=self.IQoffset[a][0]
-            Q_values[a]=self.IQoffset[a][1]
+            I_values[a]=pow(2,13)-1 + self.IQoffset[a][0]
+            Q_values[a]=pow(2,13)-1 + self.IQoffset[a][1]
         
 
         ch=self.active_channel-1
@@ -362,6 +394,8 @@ class CalibrateLinearity1DObj:
 
         STASIS_Control.STASIS_System.Modulator.I_values=I_values
         STASIS_Control.STASIS_System.Modulator.Q_values=Q_values
+        STASIS_Control.STASIS_System.Modulator.counter_max=[1]*self.number_of_channels
+        STASIS_Control.STASIS_System.Modulator.Amp_state=[mode]*self.number_of_channels
         self.set_Modulators() #Set the Modulators to the values just provided.
 
         if dig_value==0:
@@ -385,13 +419,16 @@ class CalibrateLinearity1DObj:
         self.plotFigure()
 
         
-        #self.set_Modulators()
+        self.set_Modulators()
 
     def saveClose(self):
         '''Function for closing the calibration Window. Also calls the "write_1D_Cal" method of the Modulator-Object and disables the system.'''
-        STASIS_Control.STASIS_System.disable_system()
+        try:
+            STASIS_Control.STASIS_System.disable_system()
+        except:
+            print('Error! Could not transmit via SPI.')
         STASIS_Control.STASIS_System.Modulator.Cal1D=self.Cal1D #Write the new calibration data into the Modulator.
         STASIS_Control.STASIS_System.Modulator.write_1D_Cal()
         self.WindowMain.destroy()
-        pass    
+            
 

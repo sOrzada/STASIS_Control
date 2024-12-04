@@ -47,7 +47,10 @@ class STASIS_SystemObj:
         bytestream = bytestream + self.SignalSource.return_byte_stream() + self.Modulator.return_byte_stream() + self.TimingControl.return_byte_stream() + bytes([0,0,0,0])
         self.SPI.send_bitstream(bytestream)    
     def disable_system(self):
-        self.SPI.send_bitstream(bytes([0,0,0,0]))
+        try:
+            self.SPI.send_bitstream(bytes([0,0,0,0]))
+        except:
+            print('Error: Could not transmit via SPI!')
 
 ### Helper Classes ###
 class PulseObj:
@@ -241,14 +244,14 @@ class ModulatorObj: #Contains all data and methods for Modulators
         
         #Initialize Variables for Linearity Calibration
         self.number_of_1D_samples=12
-        Dig_Values = [0, 2000, 4000, 6000, 8000, 9000, 10000, 11000, 12000, 13000, 14000, 15000]
+        Dig_Values = [0, 1000, 2000, 3000, 4000, 4500, 5000, 5500, 6000, 6500, 7000, 7500]
         self.Cal1D = np.zeros((self.number_of_channels,2,self.number_of_1D_samples,3)) #Number of Channels, Number of power modes (high/low), number of test samples, 3 (digital value, voltage, phase)
         self.voltageHigh=int(config['Amplifiers']['max_amplitude_high'])
         self.voltageLow=int(config['Amplifiers']['max_amplitude_low'])
         for a in range(self.number_of_1D_samples): #Define standard values for Calibration in case no calibration file is found.
             self.Cal1D[:,:,a,0] = Dig_Values[a] #Generic digital values
-            self.Cal1D[:,0,a,1] = self.voltageLow /15000 * Dig_Values[a] #generic voltage values low power mode
-            self.Cal1D[:,1,a,1] = self.voltageHigh/15000 * Dig_Values[a] #generic voltage values high power mode
+            self.Cal1D[:,0,a,1] = self.voltageLow /7500 * Dig_Values[a] #generic voltage values low power mode
+            self.Cal1D[:,1,a,1] = self.voltageHigh/7500 * Dig_Values[a] #generic voltage values high power mode
             self.Cal1D[:,:,:,2] = 0 #No phase error
 
         self.f_name_Cal1D=os.path.dirname(__file__) + '/' + config['Calibration']['Calibration_File_1D'] #Get file name for Zero Calibration from Config file.
