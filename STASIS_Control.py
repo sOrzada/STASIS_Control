@@ -1,4 +1,6 @@
-'''Classes for Hardware Modules of STASIS system are defined and initialized here.'''
+'''
+Classes for Hardware Modules of STASIS system are defined and initialized here.
+-------------------------------------------------------------------------------'''
 import math
 import numpy as np
 import scipy
@@ -311,7 +313,7 @@ class ModulatorObj: #Contains all data and methods for Modulators
                 self.Amp_state[a]=state_in[a]
 
     def calcIQ(self,amp,ph,channel,mode): #Calculate digital values including calibration
-        '''This function translates a value for amplitude and phase into a complex I/Q value including normalization according to the calibration.\n
+        '''This function translates a value for amplitude and phase into a complex I/Q value including normalization according to the calibrations.\n
         "amp" is a single amplitude in Volts.\n
         "phase is a single phase in degrees.\n
         "channel" specifies for which channel this sample is. This is necessary to use the correct calibration values.\n

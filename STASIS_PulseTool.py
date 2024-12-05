@@ -283,10 +283,3 @@ def A_phi2complex(amplitudes,phases):
     phases = np.array(phases)
     x=amplitudes*np.exp(1j*np.pi*phases/180)
     return x
-
-#Test Programm:
-
-#p=PulseToolObj()
-#p.openGUI()
-#p.mainloop()
-#quit()
