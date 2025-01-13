@@ -106,7 +106,7 @@ class PulseToolObj:
         self.bandwidth = 1000
         self.freq_shift = 1000
         amp_state_temp = 0
-        amplitude_temp = 100
+        amplitude_temp = 10
         phase_increment = 360/self.number_of_channels
         self.text_input = 'Sinc Pulse with Hamming window. Parameters:\n'\
                         + 'Bandwidth (Hz): ' + str(self.bandwidth) + '\n'\
@@ -119,7 +119,7 @@ class PulseToolObj:
         
     def noise_pulse_setup(self):
         '''Setup for noise pulse. Specifies standard values and sets up the text box.'''
-        self.max_amplitude=100
+        self.max_amplitude=10
         self.min_amplitude=0
         self.number_of_noise_samples= self.Tx_samples
         amp_state_temp = 0
@@ -134,7 +134,7 @@ class PulseToolObj:
     def rect_freq_shift_setup(self):
         '''Setup for rect pulse. Specifies standard values and sets up the text box.'''
         self.freq_shift = 1000 #in Hz
-        amplitude_temp = 100
+        amplitude_temp = 10
         amp_state_temp = 0
         phase_increment = 360/self.number_of_channels #in Degrees
         self.text_input = 'Rect with frequency shift, Parameters:\n'\

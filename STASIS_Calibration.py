@@ -167,14 +167,14 @@ class CalibrateLinearity1DObj:
         self.active_channel = 1
         self.IQoffset = STASIS_Control.STASIS_System.Modulator.IQoffset #Load IQoffset from Modulators.
         self.Cal1D = STASIS_Control.STASIS_System.Modulator.Cal1D       #Load 1D Calibration from Modulators.
-        self.dig_value = 0  #Always start with the first digital value (which is 0, so no danger to components or people)
+        self.dig_index = 0  #Always start with the first digital value (which is 0, so no danger to components or people)
         self.max_dig_value = STASIS_Control.STASIS_System.Modulator.number_of_1D_samples #Maximum number of 1D samples.
 
     def openGUI(self):
         '''Prepares and Opens the GUI or this Class Object.'''
         #Preparations for safety:
         self.active_channel = 1 #Always start with first channel when user activates GUI.
-        self.dig_value = 0  #Always start with the first digital value (which is 0, so no danger to components or people)
+        self.dig_index = 0  #Always start with the first digital value (which is 0, so no danger to components or people)
         
         #Open Main Window
         self.WindowMain = Toplevel()
@@ -288,24 +288,24 @@ class CalibrateLinearity1DObj:
 
     def apply_entry(self):
         '''Applies the entry from the entry boxes and writes them into the Cal1D variable.'''
-        if self.dig_value>0: #Only allow changes for digital values other than 0
+        if self.dig_index>0: #Only allow changes for digital values other than 0
             voltage=pow(10,float(self.dB_value.get())/20)*U_0dBm
             angle=float(self.deg_value.get())
-            self.Cal1D[self.active_channel-1,self.Amp_Mode.get(),self.dig_value,1]=voltage
-            self.Cal1D[self.active_channel-1,self.Amp_Mode.get(),self.dig_value,2]=angle
+            self.Cal1D[self.active_channel-1,self.Amp_Mode.get(),self.dig_index,1]=voltage
+            self.Cal1D[self.active_channel-1,self.Amp_Mode.get(),self.dig_index,2]=angle
             self.Cal1D[self.active_channel-1,self.Amp_Mode.get(),0,2]=self.Cal1D[self.active_channel-1,self.Amp_Mode.get(),1,2] #We need to make sure that there is no change in angle between 0V and the smallest measured voltage.
         self.update()
 
 
     def dig_value_select(self,a):
         '''Selects a digital value from a pre-defined set. These are the digital values added on top of the zero point calibration.'''
-        self.dig_value=self.dig_value+a
-        if self.dig_value<0:
-            self.dig_value=0
-        if self.dig_value>self.max_dig_value-1:
-            self.dig_value=self.max_dig_value-1
+        self.dig_index=self.dig_index+a
+        if self.dig_index<0:
+            self.dig_index=0
+        if self.dig_index>self.max_dig_value-1:
+            self.dig_index=self.max_dig_value-1
         
-        self.label_dig_value.config(text=str(int(self.Cal1D[self.active_channel-1,self.Amp_Mode.get(),self.dig_value,0])))
+        self.label_dig_value.config(text=str(int(self.Cal1D[self.active_channel-1,self.Amp_Mode.get(),self.dig_index,0])))
         self.update()
 
     def sel(self):
@@ -332,17 +332,22 @@ class CalibrateLinearity1DObj:
 
         ch=self.active_channel-1
         mode=self.Amp_Mode.get()
-        dig_value=self.dig_value
+        dig_index=self.dig_index
         self.plotFigurelin.clear()
         self.plotFigureAngle.clear()
 
         #For convenience of reader, change y axis of plot:
         if mode==0:
-            U_max=70
+            U_max=100
         else:
             U_max=270
         
-        x=range(0,7500,20) #Range for possible digital values (<2^13-1)
+        if mode==0:
+            x_ax_max=900
+        else:
+            x_ax_max=4500
+
+        x=range(0,x_ax_max,20) #Range for possible digital values (<2^13-1)
 
         #Plot interpolated values of Amplitude
         xi=self.Cal1D[ch,mode,:,0]
@@ -356,12 +361,12 @@ class CalibrateLinearity1DObj:
         self.plotFigureAngle.plot(x,y,color=color_angle)
 
         self.plotFigurelin.scatter(self.Cal1D[ch,mode,:,0],self.Cal1D[ch,mode,:,1], color=color_amp, marker='x')
-        self.plotFigurelin.scatter(self.Cal1D[ch,mode,dig_value,0],self.Cal1D[ch,mode,dig_value,1],color=color_highlight, marker='o')
+        self.plotFigurelin.scatter(self.Cal1D[ch,mode,dig_index,0],self.Cal1D[ch,mode,dig_index,1],color=color_highlight, marker='o')
         self.plotFigureAngle.scatter(self.Cal1D[ch,mode,:,0],self.Cal1D[ch,mode,:,2],color=color_angle,marker='*' )
-        self.plotFigureAngle.scatter(self.Cal1D[ch,mode,dig_value,0],self.Cal1D[ch,mode,dig_value,2],color=color_highlight, marker='o')
+        self.plotFigureAngle.scatter(self.Cal1D[ch,mode,dig_index,0],self.Cal1D[ch,mode,dig_index,2],color=color_highlight, marker='o')
         self.plotFigureAngle.set_ylim(-180,180)
         
-        self.plotFigurelin.axis([0,pow(2,13)-1,0,U_max])
+        self.plotFigurelin.axis([0,x_ax_max*1.1,0,U_max])
         self.plotFigurelin.set_xlabel('Digital Value')
         self.plotFigurelin.set_ylabel('Output in V',color='tab:blue')
         self.plotFigureAngle.set_ylabel('Phase in °',color='tab:red')
@@ -399,12 +404,12 @@ class CalibrateLinearity1DObj:
 
         ch=self.active_channel-1
         mode=self.Amp_Mode.get()
-        dig_value=self.dig_value
+        dig_index=self.dig_index
         self.plotFigurelin.clear()
         self.entry_degree.delete('0',END)
         self.entry_db.delete('0',END)
 
-        I_values[ch]=I_values[ch]+dig_value #For measurement, add the current digital value to zero point.
+        I_values[ch]=int(I_values[ch]+self.Cal1D[ch,mode,dig_index,0]) #For measurement, add the current digital value to zero point.
 
         STASIS_Control.STASIS_System.Modulator.I_values=I_values
         STASIS_Control.STASIS_System.Modulator.Q_values=Q_values
@@ -412,7 +417,7 @@ class CalibrateLinearity1DObj:
         STASIS_Control.STASIS_System.Modulator.Amp_state=[mode]*self.number_of_channels
         self.set_Modulators() #Set the Modulators to the values just provided.
 
-        if dig_value==0:
+        if dig_index==0:
             self.entry_db.insert('0','-inf')
             self.entry_degree.insert('0','n.a.')
             self.entry_db.config(state='readonly')
@@ -423,8 +428,8 @@ class CalibrateLinearity1DObj:
             self.entry_degree.delete('0',END)
             self.entry_db.delete('0',END)
 
-        current_dB = 20*math.log10((self.Cal1D[ch,mode,dig_value,1]+0.000001)/U_0dBm)
-        current_deg = self.Cal1D[ch,mode,dig_value,2]
+        current_dB = 20*math.log10((self.Cal1D[ch,mode,dig_index,1]+0.000001)/U_0dBm)
+        current_deg = self.Cal1D[ch,mode,dig_index,2]
 
         
         self.entry_db.insert('0',str(current_dB))

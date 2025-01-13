@@ -227,7 +227,7 @@ class ModulatorObj: #Contains all data and methods for Modulators
         self.I_values = [0] * self.number_of_channels #In phase value for Modulator
         self.Amp_state = [0] * self.number_of_channels #Amplifier state (high(1) and low(0) voltage)
         self.Q_values = [0] * self.number_of_channels #Quadrature value for Modulator
-        self.amplitudes = [200] *self.number_of_channels #Amplitudes of all channels
+        self.amplitudes = [10] *self.number_of_channels #Amplitudes of all channels
         self.phases = [0] * self.number_of_channels #Phases of all channels
         
         for a in range(self.number_of_channels):
@@ -247,14 +247,18 @@ class ModulatorObj: #Contains all data and methods for Modulators
         
         #Initialize Variables for Linearity Calibration
         self.number_of_1D_samples=12
-        Dig_Values = [0, 1000, 2000, 3000, 4000, 4500, 5000, 5500, 6000, 6500, 7000, 7500]
+        Dig_Values = [0, 250, 500, 750, 1000, 1500, 2000, 2500, 3000, 3500, 4000, 4500]
+        for a in range(self.number_of_1D_samples):
+            Dig_Values[a]=round(4500/self.number_of_1D_samples*a)
+
         self.Cal1D = np.zeros((self.number_of_channels,2,self.number_of_1D_samples,3)) #Number of Channels, Number of power modes (high/low), number of test samples, 3 (digital value, voltage, phase)
         self.voltageHigh=int(config['Amplifiers']['max_amplitude_high'])
         self.voltageLow=int(config['Amplifiers']['max_amplitude_low'])
         for a in range(self.number_of_1D_samples): #Define standard values for Calibration in case no calibration file is found.
-            self.Cal1D[:,:,a,0] = Dig_Values[a] #Generic digital values
-            self.Cal1D[:,0,a,1] = self.voltageLow /7500 * Dig_Values[a] #generic voltage values low power mode
-            self.Cal1D[:,1,a,1] = self.voltageHigh/7500 * Dig_Values[a] #generic voltage values high power mode
+            self.Cal1D[:,1,a,0] = Dig_Values[a] #Generic digital values
+            self.Cal1D[:,0,a,0] = round(Dig_Values[a]/5) #Generic digital values
+            self.Cal1D[:,0,a,1] = self.voltageLow /2500 * Dig_Values[a] #generic voltage values low power mode
+            self.Cal1D[:,1,a,1] = self.voltageHigh/4500 * Dig_Values[a] #generic voltage values high power mode
             self.Cal1D[:,:,:,2] = 0 #No phase error
 
         self.f_name_Cal1D=os.path.dirname(__file__) + '/' + config['Calibration']['Calibration_File_1D'] #Get file name for Zero Calibration from Config file.

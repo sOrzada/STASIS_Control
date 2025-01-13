@@ -209,14 +209,15 @@ def setShim(): #Manually set a simple shim by typing into a textbox.
     shim_set_text = scrolledtext.ScrolledText(setShimWindow, width = 40, height =10)
     shim_set_text.place(x=50,y=10)
     shim_string=str('')
-    setShim_Button = Button(setShimWindow, text='Apply', command = lambda: setShim_Button_Press(shim_set_text.get("1.0",END), amp_state_select,setShimWindow))
-    setShim_Button.place(x=490,y=140, anchor=CENTER, width=100)
+    
     Amp_State_Radiobuttons = []
     amp_state_select=0
     Amp_State_Radiobuttons.append(Radiobutton(setShimWindow,variable=amp_state_select, value=0, text='Low Power'))
     Amp_State_Radiobuttons.append(Radiobutton(setShimWindow,variable=amp_state_select, value=1, text='High Power'))
     Amp_State_Radiobuttons[0].place(x=400,y=40)
     Amp_State_Radiobuttons[1].place(x=400,y=70)
+    setShim_Button = Button(setShimWindow, text='Apply', command = lambda: setShim_Button_Press(shim_set_text.get("1.0",END), amp_state_select,setShimWindow))
+    setShim_Button.place(x=490,y=140, anchor=CENTER, width=100)
     for a in range(STASIS_Control.STASIS_System.Modulator.number_of_channels):
         shim_string = shim_string + str(STASIS_Control.STASIS_System.Modulator.amplitudes[a][0]) + ', ' + str(STASIS_Control.STASIS_System.Modulator.phases[a][0])
         if a < STASIS_Control.STASIS_System.Modulator.number_of_channels-1:
@@ -377,7 +378,7 @@ amplitudes=[10]*8
 phases=[45/180*np.pi]*8
 amp_state=[0]*8
 for channel in range(8):
-   amplitudes[channel]=[10,10]
+   amplitudes[channel]=[100,100]
    phases[channel]=[0,45/180*np.pi]
    amp_state[channel]=[1,1]
 
