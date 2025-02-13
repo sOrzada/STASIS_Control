@@ -1,5 +1,6 @@
 import STASIS_Control #Contains definition of Hardware and Initializes Hardware.
-import math
+import pathlib
+import scipy
 import numpy as np
 import configparser
 from time import sleep
@@ -150,7 +151,36 @@ def savePulse():
     pass
 
 def externalPulse():
-    pass
+    '''Enables loading of external pulses from Python or Matlab\n
+    The file must contain a matlab array called 'pulse' or numpy array\n
+    The size must be [number of channels, number of samples, 3]\n
+    The last dimension contains: Amplitudes in V, Phase in degree, amplifier state (0 for low power, 1 for high power)'''
+    f_name=filedialog.askopenfile(mode='rb', filetypes=([('Matlab file','*.mat'),('Numpy file','.npy')]), defaultextension=(('Matlab file','*.mat'),))
+    extension=pathlib.Path(f_name.name).suffix
+    
+    match extension:
+        case '.mat':
+            mat_contents=scipy.io.loadmat(f_name)
+            loaded_pulse=mat_contents['pulse']
+        case '.npy':
+            loaded_pulse=np.load(f_name)
+
+    size_pulse_array=loaded_pulse.shape #Dimensions should be as follows: [Nch, Nsamples, 3], where dimension 3 is 1) Amplitude in V, 2) Phase in degree, 3) Amplifier state
+    Amplitudes=[0]*size_pulse_array[0]
+    Phases=[0]*size_pulse_array[0]
+    States=[0]*size_pulse_array[0]
+    for a in range(size_pulse_array[0]):
+        Amplitudes[a]=[]
+        Phases[a]=[]
+        States[a]=[]
+        for b in range(size_pulse_array[1]):
+            Amplitudes[a].append(float(loaded_pulse[a,b,0]))
+            Phases[a].append(float(loaded_pulse[a,b,1]))
+            States[a].append(int(loaded_pulse[a,b,2]))
+    STASIS_Control.STASIS_System.Modulator.set_amplitudes_phases_state(Amplitudes,Phases,States)
+    update_status_text()
+                
+    
 
 def validateTimingEntry(TimingEntryInput, TimingEntry):
     '''Checks Timings for Validity (max 2^16, only numbers) and applies settings'''
