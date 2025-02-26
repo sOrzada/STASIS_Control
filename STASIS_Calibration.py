@@ -203,10 +203,10 @@ class CalibrateLinearity1DObj:
         self.init_radiobuttons(x_start=80,y_start=130)
 
         #Digital Value Selector
-        self.init_dig_value_select(x_center=150,y_center=180)
+        self.init_dig_value_select(x_center=150,y_center=210)
 
         #Initialize Entry Boxes
-        self.init_entry_boxes(x_center=130, y_center=220)
+        self.init_entry_boxes(x_center=130, y_center=250)
 
         #Initialize Figure for linearity results
         self.Figurelin = Figure(figsize=(5,5), dpi=80)
@@ -254,6 +254,8 @@ class CalibrateLinearity1DObj:
     
     def init_dig_value_select(self, x_center, y_center): #Initialize Buttons and Label for Channel selection
         '''Initializes the channel selection interface at the coordinates specified by x_center and y_center.'''
+        Caption1 = Label(self.WindowMain, height=1, width=20, text='Digital Value Selector')
+        Caption1.place(x=x_center,y=y_center-30, anchor=CENTER)
         Button_prev = Button(self.WindowMain, width=3,height=1, text='<', command=lambda: self.dig_value_select(-1))
         Button_next = Button(self.WindowMain, width=3,height=1, text='>', command=lambda: self.dig_value_select(+1))
         self.label_dig_value = Label(self.WindowMain, height=1, width=6, text=str(0), relief='sunken', bg='white')

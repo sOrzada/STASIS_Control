@@ -294,7 +294,7 @@ class ModulatorObj: #Contains all data and methods for Modulators
         np.save(self.f_name_Cal1D,self.Cal1D)
     
     def prepare_1D_Cal(self):
-        '''Prepares the Pchip-Interpolators\n
+        '''Prepares the Pchip-Interpolators for 1D Amplitude and Phase correction\n
         For each channel and each amplifier mode there is a fixed set of polynomials, which is prepared in this function, so that the polynomials do not have to be calculated again and again.'''
         
         self.pchip_objects_amplitude=[0]*self.number_of_channels #Prepare list of Pchip Objects
@@ -303,22 +303,16 @@ class ModulatorObj: #Contains all data and methods for Modulators
         for channel in range(self.number_of_channels):
             self.pchip_objects_amplitude[channel]=[]
             self.pchip_objects_phase[channel]=[]
-            #Amplitude: Low Power Mode
-            xi=self.Cal1D[channel,0,:,1]
-            yi=self.Cal1D[channel,0,:,0]
-            self.pchip_objects_amplitude[channel].append(scipy.interpolate.PchipInterpolator(xi,yi))
-            #Amplitude: High Power Mode
-            xi=self.Cal1D[channel,1,:,1]
-            yi=self.Cal1D[channel,1,:,0]
-            self.pchip_objects_amplitude[channel].append(scipy.interpolate.PchipInterpolator(xi,yi))
-            #Phase: Low Power Mode
-            xi=self.Cal1D[channel,0,:,0]
-            yi=self.Cal1D[channel,0,:,2]
-            self.pchip_objects_phase[channel].append(scipy.interpolate.PchipInterpolator(xi,yi))
-            #Phase: Low Power Mode
-            xi=self.Cal1D[channel,1,:,0]
-            yi=self.Cal1D[channel,1,:,2]
-            self.pchip_objects_phase[channel].append(scipy.interpolate.PchipInterpolator(xi,yi))
+            for amp_mode in range(2): #Toggle the two modes (low and high power)
+            #Amplitude
+                xi=self.Cal1D[channel,amp_mode,:,1]
+                yi=self.Cal1D[channel,amp_mode,:,0]
+                self.pchip_objects_amplitude[channel].append(scipy.interpolate.PchipInterpolator(xi,yi))
+            #Phase
+                xi=self.Cal1D[channel,amp_mode,:,0]
+                yi=self.Cal1D[channel,amp_mode,:,2]
+                self.pchip_objects_phase[channel].append(scipy.interpolate.PchipInterpolator(xi,yi))
+
 
     def set_amplitudes_phases_state(self,amplitudes_in,phases_in,state_in):
         '''Sets the digital I and Q values to achieve the amplitudes and phases specified in the input variables.\n
@@ -361,8 +355,8 @@ class ModulatorObj: #Contains all data and methods for Modulators
         amp_digital = self.pchip_objects_amplitude[channel][mode].__call__(amp) #Corrected digital amplitude in arbitrary units
         
         #Calculate phase correction for digital amplitude
-        phase_offset = self.pchip_objects_amplitude[channel][mode].__call__(amp_digital)
-        ph=ph-phase_offset #ToDo: Check whether sign is correct.
+        phase_offset = self.pchip_objects_phase[channel][mode].__call__(amp_digital) #Correct phase for the selected digital amplitude
+        ph=ph+phase_offset #This is the correct sign.
 
         IQ=(pow(2,13)-1 +self.IQoffset[channel][0])+ 1j*(pow(2,13)-1 +self.IQoffset[channel][1]) + amp_digital*np.exp(1j*np.pi/180*ph) #Only includes offset correction.
         return IQ
