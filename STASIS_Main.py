@@ -27,7 +27,7 @@ def start_main_GUI():
     MAINWINDOW.config(width=800, height=600)
     MAINWINDOW.resizable(False,False)
     MAINWINDOW.protocol('WM_DELETE_WINDOW', on_closing)
-    MAINWINDOW.iconbitmap(os.path.dirname(__file__) + '\images\S_square_32x32.ico')
+    MAINWINDOW.iconbitmap(os.path.dirname(__file__) + r'\images\S_square_32x32.ico')
     init_Menu(MAINWINDOW)
     text_box = scrolledtext.ScrolledText(MAINWINDOW, width = 45, height =30)
     text_box.place(x=400,y=60)
@@ -235,7 +235,7 @@ def setShim(): #Manually set a simple shim by typing into a textbox.
     setShimWindow.config(width=600, height=210)
     setShimWindow.geometry('%dx%d+%d+%d' % (600, 210, mainwindow_posx+50, mainwindow_posy+150))
     setShimWindow.title('Set simple shim')
-    setShimWindow.iconbitmap(os.path.dirname(__file__) + '\images\S_square_32x32.ico')
+    setShimWindow.iconbitmap(os.path.dirname(__file__) + r'\images\S_square_32x32.ico')
     shim_set_text = scrolledtext.ScrolledText(setShimWindow, width = 40, height =10)
     shim_set_text.place(x=50,y=10)
     shim_string=str('')
@@ -286,7 +286,7 @@ def aboutInfo():
     aboutWindow.config(height=400,width=400)
     aboutWindow.resizable(False,False)
     aboutWindow.title('Info')
-    aboutWindow.iconbitmap(os.path.dirname(__file__) + '\images\S_square_32x32.ico')
+    aboutWindow.iconbitmap(os.path.dirname(__file__) + r'\images\S_square_32x32.ico')
     aboutLabel = Label(aboutWindow, text='\nSTASIS Control Software\nThis program was written by\nStephan Orzada\nat the German Cancer Center (DKFZ)\nStephan.Orzada@dkfz.de\n')
     aboutLabel.place(x=200,y=180, anchor=CENTER)
     okButton = Button(aboutWindow, text='OK', command = aboutWindow.destroy)
@@ -294,7 +294,7 @@ def aboutInfo():
     aboutLabel.config(width=40, height=15)
 
     #STASIS Logo:
-    image_path_stasis=os.path.dirname(__file__) + '\Images\csm_STASIS_logo_dadfd3b026.jpg'
+    image_path_stasis=os.path.dirname(__file__) + r'\Images\csm_STASIS_logo_dadfd3b026.jpg'
     ph1=Image.open(image_path_stasis)
     ph1=ph1.resize((256,114), resample=1)
     ph1=ImageTk.PhotoImage(ph1)
@@ -302,7 +302,7 @@ def aboutInfo():
     label_image1.place(x=200,y=70, anchor='center')
     
     #DKFZ Logo:
-    image_path_stasis=os.path.dirname(__file__) + '\Images\dkfz-logo2.png'
+    image_path_stasis=os.path.dirname(__file__) + r'\Images\dkfz-logo2.png'
     ph2=Image.open(image_path_stasis)
     ph2=ph2.resize((181,54), resample=1)
     ph2=ImageTk.PhotoImage(ph2)

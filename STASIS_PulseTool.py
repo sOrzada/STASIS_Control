@@ -39,7 +39,7 @@ class PulseToolObj:
         self.WindowMain.config(width=1200, height=700)
         self.WindowMain.protocol('WM_DELETE_WINDOW', lambda: self.on_closing())
         self.WindowMain.title('STASIS - Simple Pulse Tool')
-        self.WindowMain.iconbitmap(os.path.dirname(__file__) + '\images\S_square_32x32.ico')
+        self.WindowMain.iconbitmap(os.path.dirname(__file__) + r'\images\S_square_32x32.ico')
         self.WindowMain.grab_set()
         
         #General Info Box

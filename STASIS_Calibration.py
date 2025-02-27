@@ -29,7 +29,7 @@ class CalibrateZeroObj:
     def openGUI(self):
         '''Prepares and Opens the GUI or this Class Object.'''
         self.WindowMain = Toplevel()
-        self.WindowMain.iconbitmap(os.path.dirname(__file__) + '\images\S_square_32x32.ico')
+        self.WindowMain.iconbitmap(os.path.dirname(__file__) + r'\images\S_square_32x32.ico')
         self.WindowMain.title('Zero Point Calibration of Modulators')
         self.WindowMain.config(width=1200, height=550)
         self.WindowMain.protocol('WM_DELETE_WINDOW', lambda: self.saveClose())
@@ -41,7 +41,7 @@ class CalibrateZeroObj:
         self.ButtonSaveClose.place(x=150, y=400, anchor='center')
 
         #Load explanatory image and show in GUI
-        self.image_path=os.path.dirname(__file__) + '\Images\Zero_Point_Cal.jpg'
+        self.image_path=os.path.dirname(__file__) + r'\Images\Zero_Point_Cal.jpg'
         self.ph=Image.open(self.image_path)
         self.ph_resize=self.ph.resize((450,300), resample=1)
         self.ph_image=ImageTk.PhotoImage(self.ph_resize)
@@ -178,13 +178,13 @@ class CalibrateLinearity1DObj:
         
         #Open Main Window
         self.WindowMain = Toplevel()
-        self.WindowMain.iconbitmap(os.path.dirname(__file__) + '\images\S_square_32x32.ico')
+        self.WindowMain.iconbitmap(os.path.dirname(__file__) + r'\images\S_square_32x32.ico')
         self.WindowMain.title('Linearity Calibration of Amplifiers')
         self.WindowMain.config(width=1300, height=550)
         self.WindowMain.protocol('WM_DELETE_WINDOW', lambda: self.saveClose())
 
         #Load explanatory image and show in GUI
-        self.image_path=os.path.dirname(__file__) + '\Images\Cal_Lin1D.jpg'
+        self.image_path=os.path.dirname(__file__) + r'\Images\Cal_Lin1D.jpg'
         self.ph=Image.open(self.image_path)
         self.ph_resize=self.ph.resize((550,375), resample=1)
         self.ph_image=ImageTk.PhotoImage(self.ph_resize)
