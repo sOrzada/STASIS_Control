@@ -291,7 +291,7 @@ class CalibrateLinearity1DObj:
     def apply_entry(self):
         '''Applies the entry from the entry boxes and writes them into the Cal1D variable.'''
         if self.dig_index>0: #Only allow changes for digital values other than 0
-            voltage=pow(10,float(self.dB_value.get())/20)*U_0dBm
+            voltage=pow(10,(float(self.dB_value.get())+10)/20)*U_0dBm #The +10 is for the 10 dBm apllied by the VNA.
             angle=float(self.deg_value.get())
             self.Cal1D[self.active_channel-1,self.Amp_Mode.get(),self.dig_index,1]=voltage
             self.Cal1D[self.active_channel-1,self.Amp_Mode.get(),self.dig_index,2]=angle
@@ -340,12 +340,12 @@ class CalibrateLinearity1DObj:
 
         #For convenience of reader, change y axis of plot:
         if mode==0:
-            U_max=100
+            U_max=70
         else:
-            U_max=270
+            U_max=300
         
         if mode==0:
-            x_ax_max=900
+            x_ax_max=1200
         else:
             x_ax_max=4500
 
@@ -430,7 +430,7 @@ class CalibrateLinearity1DObj:
             self.entry_degree.delete('0',END)
             self.entry_db.delete('0',END)
 
-        current_dB = 20*math.log10((self.Cal1D[ch,mode,dig_index,1]+0.000001)/U_0dBm)
+        current_dB = 20*math.log10((self.Cal1D[ch,mode,dig_index,1]+0.000001)/U_0dBm) -10   #The -10 accounts for the +10 dBm output of the VNA.
         current_deg = self.Cal1D[ch,mode,dig_index,2]
 
         
