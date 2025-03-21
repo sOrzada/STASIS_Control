@@ -171,7 +171,7 @@ class CalibrateLinearity1DObj:
         self.max_dig_value = STASIS_Control.STASIS_System.Modulator.number_of_1D_samples #Maximum number of 1D samples.
 
     def openGUI(self):
-        '''Prepares and Opens the GUI or this Class Object.'''
+        '''Prepares and Opens the GUI of this Class Object.'''
         #Preparations for safety:
         self.active_channel = 1 #Always start with first channel when user activates GUI.
         self.dig_index = 0  #Always start with the first digital value (which is 0, so no danger to components or people)
@@ -215,11 +215,11 @@ class CalibrateLinearity1DObj:
         self.canvasFigurelin = FigureCanvasTkAgg(self.Figurelin, master=self.WindowMain)
         self.canvasFigurelin.get_tk_widget().place(x=500, y=250, anchor='center')
 
-        #Set Timings for Calibration: 1% Duty Cycle, 1ms pulses. This should be long enough for triggered measurements.
+        #Set Timings for Calibration as defined in the config.ini
         STASIS_Control.STASIS_System.disable_system()
-        STASIS_Control.STASIS_System.TimingControl.clock_divider=1000
-        STASIS_Control.STASIS_System.TimingControl.counter_Tx=10
-        STASIS_Control.STASIS_System.TimingControl.counter_Rx=990
+        STASIS_Control.STASIS_System.TimingControl.clock_divider=int(STASIS_Control.STASIS_System.config_data['Calibration']['Calibration_Clock_Divider'])
+        STASIS_Control.STASIS_System.TimingControl.counter_Tx=int(STASIS_Control.STASIS_System.config_data['Calibration']['Calibration_Tx_Samples'])
+        STASIS_Control.STASIS_System.TimingControl.counter_Rx=int(STASIS_Control.STASIS_System.config_data['Calibration']['Calibration_Rx_Samples'])
         STASIS_Control.STASIS_System.TimingControl.set_alternating_mode()
         data=STASIS_Control.STASIS_System.TimingControl.return_byte_stream()
         try:
@@ -449,4 +449,124 @@ class CalibrateLinearity1DObj:
         STASIS_Control.STASIS_System.Modulator.write_1D_Cal()
         self.WindowMain.destroy()
             
+class CalibratePowerLevelObj:
+    def __init__(self):
+        self.number_of_channels = STASIS_Control.STASIS_System.Modulator.number_of_channels
+        
+        #Modulator settings for Continouse mode
+        self.AmplitudesCont = [0]*self.number_of_channels
+        self.AmplitudesCont[0]=30 #Set first channel to 30V output
+        self.PhasesCont = [0]*self.number_of_channels
+        self.ModesCont = [0]*self.number_of_channels
 
+        #Modulator setting for pulsed mode
+        self.AmplitudesPulse=[0]*self.number_of_channels
+        self.AmplitudesPulse[0]=150 #Set first channel to 150V ouput
+        self.PhasesPulse=self.PhasesCont
+        self.ModesPulse=[1]*self.number_of_channels
+        
+        self.stateCont='off'
+        self.statePulsed='off'
+        
+
+    def openGUI(self):
+        STASIS_Control.STASIS_System.disable_system()
+        self.WindowMain = Toplevel()
+        self.WindowMain.iconbitmap(os.path.dirname(__file__) + r'\images\S_square_32x32.ico')
+        self.WindowMain.title('Linearity Calibration of Amplifiers')
+        self.WindowMain.config(width=500, height=300)
+        self.WindowMain.protocol('WM_DELETE_WINDOW', lambda: self.selfClose())
+
+        #Add Buttons and Labels
+        
+        self.PowerValueCont=StringVar()
+        transmitPowerCont=math.pow(self.AmplitudesCont[0],2)/50
+        self.PowerValueCont.set(str(transmitPowerCont))
+        self.buttonStartTransmitCont = Button(self.WindowMain, width=10, height=2,text='Start Transmit', command=self.StartTransmitCont)
+        self.buttonStartTransmitCont.place(x=300,y=100,anchor=CENTER)
+        self.buttonStartTransmitCont.config(relief='raised')
+        self.entryPowerCont = Entry(self.WindowMain, width=12, textvariable=self.PowerValueCont)
+        self.entryPowerCont.place(x=100,y=100,anchor=CENTER)
+        self.labelWattsCont = Label(self.WindowMain, width=10, height=1, text='W (continous)')
+        self.labelWattsCont.place(x=180,y=100,anchor=CENTER)
+
+        self.PowerValuePulse=StringVar()
+        transmitPowerPulse=math.pow(self.AmplitudesPulse[0],2)/50
+        self.PowerValuePulse.set(str(transmitPowerPulse))
+        self.buttonStartTransmitPulse = Button(self.WindowMain, width=10, height=2,text='Start Transmit', command=self.StartTransmitPulse)
+        self.buttonStartTransmitPulse.place(x=300,y=150,anchor=CENTER)
+        self.buttonStartTransmitPulse.config(relief='raised')
+        self.entryPowerPulse = Entry(self.WindowMain, width=12, textvariable=self.PowerValuePulse)
+        self.entryPowerPulse.place(x=100,y=150,anchor=CENTER)
+        self.labelWattsPulse = Label(self.WindowMain, width=10, height=1, text='W (pulsed)')
+        self.labelWattsPulse.place(x=180,y=150,anchor=CENTER)
+        
+        self.buttonApplyClose = Button(self.WindowMain, width = 10, height=2, text='Apply & Close', command=self.ApplyClose)
+        self.buttonApplyClose.place(x=100,y=200,anchor=CENTER)
+        self.labelExplain = Label(self.WindowMain, width=60, height =3, text='Measure output power on Channel 1 (use appropriate attenuators!)\nPress the transmit button to toggle output.\nEnter result in appropriate field.')
+        self.labelExplain.place(x=200, y=30, anchor=CENTER)
+        
+        
+
+
+        STASIS_Control.STASIS_System.SignalSource.set_internal()
+        
+        #Set timings as defined in config file.
+        STASIS_Control.STASIS_System.TimingControl.clock_divider=int(STASIS_Control.STASIS_System.config_data['Calibration']['Calibration_Clock_Divider'])
+        STASIS_Control.STASIS_System.TimingControl.counter_Tx=int(STASIS_Control.STASIS_System.config_data['Calibration']['Calibration_Tx_Samples'])
+        STASIS_Control.STASIS_System.TimingControl.counter_Rx=int(STASIS_Control.STASIS_System.config_data['Calibration']['Calibration_Rx_Samples'])
+    
+    def StartTransmitPulse(self):
+        if self.statePulsed=='off':
+            STASIS_Control.STASIS_System.TimingControl.set_alternating_mode()
+            STASIS_Control.STASIS_System.Modulator.set_amplitudes_phases_state(self.AmplitudesPulse,self.PhasesPulse,self.ModesPulse)
+            STASIS_Control.STASIS_System.setup_system()
+            STASIS_Control.STASIS_System.enable_system()
+            self.buttonStartTransmitPulse.config(relief='sunken')
+            self.buttonStartTransmitCont.config(relief='raised')
+            self.stateCont='off'
+            self.statePulsed='on'
+        else:
+            STASIS_Control.STASIS_System.disable_system()
+            self.buttonStartTransmitPulse.config(relief='raised')
+            self.statePulsed='off'
+
+    def StartTransmitCont(self):
+        if self.stateCont=='off':
+            STASIS_Control.STASIS_System.TimingControl.set_continous_mode()
+            STASIS_Control.STASIS_System.Modulator.set_amplitudes_phases_state(self.AmplitudesCont,self.PhasesCont,self.ModesCont)
+            STASIS_Control.STASIS_System.setup_system()
+            STASIS_Control.STASIS_System.enable_system()
+            self.buttonStartTransmitCont.config(relief='sunken')
+            self.buttonStartTransmitPulse.config(relief='raised')
+            self.stateCont='on'
+            self.statePulsed='off'
+        else:
+            STASIS_Control.STASIS_System.disable_system()
+            self.buttonStartTransmitCont.config(relief='raised')
+            self.stateCont='off'
+
+
+    def ApplyClose(self):
+        try:
+            #Set Power factor for Continous Mode
+            PowerValue=float(self.PowerValueCont.get())
+            correctionFactor = (math.pow(self.AmplitudesCont[0],2)/50)/PowerValue
+            STASIS_Control.STASIS_System.Modulator.powerFactorCont=correctionFactor*STASIS_Control.STASIS_System.Modulator.powerFactorCont #If there already is a correction factor, we simply correct it here. Doing it like this prevents errors from accidently opening the window without measuring the values.
+            
+            #Set Power factor for Pulsed Mode
+            PowerValue=float(self.PowerValuePulse.get())
+            correctionFactor = (math.pow(self.AmplitudesPulse[0],2)/50)/PowerValue
+            STASIS_Control.STASIS_System.Modulator.powerFactorPulsed=correctionFactor*STASIS_Control.STASIS_System.Modulator.powerFactorPulsed #If there already is a correction factor, we simply correct it here. Doing it like this prevents errors from accidently opening the window without measuring the values.
+
+            #Save and close
+            STASIS_Control.STASIS_System.Modulator.write_Power_Factor()
+            STASIS_Control.STASIS_System.disable_system()
+            self.selfClose()
+        except:
+            print('Error. Please write number.')
+        
+
+    def selfClose(self):
+        self.WindowMain.destroy()
+        

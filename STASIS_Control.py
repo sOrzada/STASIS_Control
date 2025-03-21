@@ -16,6 +16,7 @@ import scipy.interpolate
 class STASIS_SystemObj:
     '''Here we combine all classes to have a single object for the STASIS System.'''
     def __init__(self,config):
+        self.config_data=config
         try:
             if config['DEFAULT']['Signal_Source_module'] == 'true':
                 self.SignalSource = SignalSourceObj(config)
@@ -44,13 +45,19 @@ class STASIS_SystemObj:
         except:
             pass
     def enable_system(self):
-        self.SPI.send_bitstream(bytes([128,0,0,0]))
+        try:
+            self.SPI.send_bitstream(bytes([128,0,0,0]))
+        except:
+            print('Error: Could not transmit via SPI!')
     def setup_system(self):
         self.TimingControl.trigger_off() #Trigger needs to be switched off before programming Modulators, because trigger is used to select adress.
         bytestream = self.TimingControl.return_byte_stream()
         self.TimingControl.trigger_on() #Trigger can be switched on again after programming Modulators.
         bytestream = bytestream + self.SignalSource.return_byte_stream() + self.Modulator.return_byte_stream() + self.TimingControl.return_byte_stream() + bytes([0,0,0,0])
-        self.SPI.send_bitstream(bytestream)    
+        try:
+            self.SPI.send_bitstream(bytestream)
+        except:
+            print('Error: Could not send via SPI!')   
     def disable_system(self):
         try:
             self.SPI.send_bitstream(bytes([0,0,0,0]))
@@ -231,7 +238,18 @@ class ModulatorObj: #Contains all data and methods for Modulators
         self.Q_values = [0] * self.number_of_channels #Quadrature value for Modulator
         self.amplitudes = [10] *self.number_of_channels #Amplitudes of all channels
         self.phases = [0] * self.number_of_channels #Phases of all channels
-        
+
+        #Inititalize powerFactor correction
+        self.powerFactorCont=1
+        self.powerFactorPulsed=1
+
+        self.f_name_powerFactor_cont=os.path.dirname(__file__) + '/' + config['Calibration']['Calibration_File_Power_Factor_Cont']
+        self.f_name_powerFactor_pulsed=os.path.dirname(__file__) + '/' + config['Calibration']['Calibration_File_Power_Factor_Pulsed']
+        try:
+            self.read_Power_Factor()
+        except:
+            self.write_Power_Factor()
+
         for a in range(self.number_of_channels):
             self.I_values[a] = [pow(2,14)-1]*self.counter_max[a]
             self.Q_values[a] = [pow(2,13)-1]*self.counter_max[a]
@@ -280,6 +298,20 @@ class ModulatorObj: #Contains all data and methods for Modulators
                 self.IQoffset[a][0]=int(row[0])
                 self.IQoffset[a][1]=int(row[1])
                 a=a+1
+    def read_Power_Factor(self):
+        '''Reads the Power Factor Values'''
+        with open(self.f_name_powerFactor_cont,'r') as f:
+            self.powerFactorCont=float(f.read())
+        with open(self.f_name_powerFactor_pulsed,'r') as f:
+            self.powerFactorPulsed=float(f.read())
+
+    def write_Power_Factor(self):
+        '''Writes Power Factors to files'''
+        with open(self.f_name_powerFactor_cont,'w',newline='') as f:
+            f.write(str(self.powerFactorCont))
+        with open(self.f_name_powerFactor_pulsed,'w',newline='') as f:
+            f.write(str(self.powerFactorPulsed)) 
+
     def read_1D_Cal(self):
         '''Reads the 1D calibration data file which is specified in the config file.'''
         self.Cal1D = np.load(self.f_name_Cal1D)
@@ -348,9 +380,16 @@ class ModulatorObj: #Contains all data and methods for Modulators
         "channel" specifies for which channel this sample is. This is necessary to use the correct calibration values.\n
         "mode" specifies which state the amplifier is in.'''
         # Order of operation for correction:
+        # 0. Power factor correction
         # 1. Calculate corrected amplitude (convert from Volts to digital value with pchip)
         # 2. Calculate correct angle in IQ-space
         # 3. Add offset
+
+        #Power Factor correction:
+        if STASIS_System.TimingControl.con_mode==0:
+            amp = amp * np.sqrt(self.powerFactorPulsed)
+        else:
+            amp = amp * np.sqrt(self.powerFactorCont)
 
         #Calculate correct digital amplitude for required output voltage
         amp_digital = self.pchip_objects_amplitude[channel][mode].__call__(amp) #Corrected digital amplitude in arbitrary units

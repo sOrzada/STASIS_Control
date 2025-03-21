@@ -97,6 +97,7 @@ def init_Menu(MainWindow): #Initialize the menu bar of main window.
     MenuBar.add_cascade(label='Calibration', menu=CalibrationMenu)
     CalibrationMenu.add_command(label = 'Zero Offset Calibration', command = calibrateSystemZero)
     CalibrationMenu.add_command(label = 'Linearity Calibration', command = calibrateSystemLin1D)
+    CalibrationMenu.add_command(label = 'Power Level Calibration', command = calibratePowerLevel)
 
     HelpMenu = Menu(MenuBar, tearoff = 0)
     MenuBar.add_cascade(label='Help', menu=HelpMenu)
@@ -327,6 +328,12 @@ def calibrateSystemLin1D():
     #MAINWINDOW.deiconify()
     update_status_text()
 
+def calibratePowerLevel():
+    cal_PowerLevel.openGUI()
+    cal_PowerLevel.WindowMain.grab_set()
+    cal_PowerLevel.WindowMain.wait_window(cal_PowerLevel.WindowMain)
+    update_status_text()
+
 def update_status_text():
     text_box.config(state=NORMAL)
     text_box.delete('1.0', END)
@@ -419,6 +426,7 @@ STASIS_Control.STASIS_System.Modulator.set_amplitudes_phases_state(amplitudes,ph
 p=STASIS_PulseTool.PulseToolObj()
 cal_zero=STASIS_Calibration.CalibrateZeroObj()
 cal_lin1D=STASIS_Calibration.CalibrateLinearity1DObj()
+cal_PowerLevel=STASIS_Calibration.CalibratePowerLevelObj()
 MAINWINDOW = start_main_GUI()
 
 
