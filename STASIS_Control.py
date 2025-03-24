@@ -351,8 +351,8 @@ class ModulatorObj: #Contains all data and methods for Modulators
         '''Sets the digital I and Q values to achieve the amplitudes and phases specified in the input variables.\n
         This includes normalizing according to the calibration.'''
         self.prepare_1D_Cal() #Prepare Pchip Objects. This is to make sure that these are current.
-        self.amplitudes=amplitudes_in
-        self.phases=phases_in
+        self.amplitudes=amplitudes_in #Save in object's variable, so that it can be read easily from outside
+        self.phases=phases_in #Save in object's variable, so that it can be read easily from outside.
         self.I_values=[0]*self.number_of_channels
         self.Q_values=[0]*self.number_of_channels
         for a in range(self.number_of_channels):

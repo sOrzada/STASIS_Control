@@ -473,7 +473,7 @@ class CalibratePowerLevelObj:
         STASIS_Control.STASIS_System.disable_system()
         self.WindowMain = Toplevel()
         self.WindowMain.iconbitmap(os.path.dirname(__file__) + r'\images\S_square_32x32.ico')
-        self.WindowMain.title('Linearity Calibration of Amplifiers')
+        self.WindowMain.title('Power Level Calibration')
         self.WindowMain.config(width=500, height=300)
         self.WindowMain.protocol('WM_DELETE_WINDOW', lambda: self.selfClose())
 

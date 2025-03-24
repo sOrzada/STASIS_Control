@@ -22,6 +22,7 @@ from PIL import Image, ImageTk
 def start_main_GUI():
     global MAINWINDOW
     global text_box
+    global StartButton
     MAINWINDOW = Tk()
     MAINWINDOW.title('STASIS Control')
     MAINWINDOW.config(width=800, height=600)
@@ -242,12 +243,12 @@ def setShim(): #Manually set a simple shim by typing into a textbox.
     shim_string=str('')
     
     Amp_State_Radiobuttons = []
-    amp_state_select=0
+    amp_state_select=IntVar()
     Amp_State_Radiobuttons.append(Radiobutton(setShimWindow,variable=amp_state_select, value=0, text='Low Power'))
     Amp_State_Radiobuttons.append(Radiobutton(setShimWindow,variable=amp_state_select, value=1, text='High Power'))
     Amp_State_Radiobuttons[0].place(x=400,y=40)
     Amp_State_Radiobuttons[1].place(x=400,y=70)
-    setShim_Button = Button(setShimWindow, text='Apply', command = lambda: setShim_Button_Press(shim_set_text.get("1.0",END), amp_state_select,setShimWindow))
+    setShim_Button = Button(setShimWindow, text='Apply', command =  lambda: setShim_Button_Press(shim_set_text.get("1.0",END), amp_state_select.get(),setShimWindow))
     setShim_Button.place(x=490,y=140, anchor=CENTER, width=100)
     for a in range(STASIS_Control.STASIS_System.Modulator.number_of_channels):
         shim_string = shim_string + str(STASIS_Control.STASIS_System.Modulator.amplitudes[a][0]) + ', ' + str(STASIS_Control.STASIS_System.Modulator.phases[a][0])
@@ -257,9 +258,10 @@ def setShim(): #Manually set a simple shim by typing into a textbox.
     shim_set_text.insert(INSERT,shim_string)
 
 def setShim_Button_Press(text_in,amp_state_select,window):
+    
     amplitudes = [0]*STASIS_Control.STASIS_System.Modulator.number_of_channels
     phases = [0]*STASIS_Control.STASIS_System.Modulator.number_of_channels
-    amp_state = [int(amp_state_select)]*STASIS_Control.STASIS_System.Modulator.number_of_channels
+    amp_state = [(amp_state_select)]*STASIS_Control.STASIS_System.Modulator.number_of_channels
     numbers = re.findall(r"[+-]? *(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?", text_in) #This line finds the numbers in text. Thanks: https://stackoverflow.com/questions/385558/extract-float-double-value
     b=0
     for a in range(STASIS_Control.STASIS_System.Modulator.number_of_channels):
@@ -393,12 +395,114 @@ def update_status_text():
             RMS_value = round(RMS_value/STASIS_Control.STASIS_System.Modulator.counter_max[a] * duty_cycle/100,show_decimals)
             RMS_total = RMS_total + RMS_value
             status_text = status_text + str(a+1) +'\t' + str(STASIS_Control.STASIS_System.Modulator.counter_max[a]) + '\t' + str(round(np.max(STASIS_Control.STASIS_System.Modulator.amplitudes[a]),show_decimals)) + 'V\t'+ str(RMS_value) + 'W\n'
-    status_text = status_text + '\nTotal RMS Power: ' + str(round(RMS_total,show_decimals)) + ' W\n'    
+    status_text = status_text + '\nTotal RMS Power: ' + str(round(RMS_total,show_decimals)) + ' W\n'   
+    pulseInfo = check_pulse()
+    if pulseInfo[0]:
+        status_text = status_text + pulseInfo[1]
+        StartButton.config(state='disabled')
+    else:
+        StartButton.config(state='normal')
     
     text_box.insert('1.0',status_text)
     text_box.config(state=DISABLED)
 
+def check_pulse():
+    '''This function checks whether the pulse and timings are within specified limits'''
+    #Get limits defined in config file:
+    maxAmpHigh = float(STASIS_Control.STASIS_System.config_data['Amplifiers']['max_amplitude_high'])
+    maxAmpLow = float(STASIS_Control.STASIS_System.config_data['Amplifiers']['max_amplitude_low'])
+    maxDutyHigh = float(STASIS_Control.STASIS_System.config_data['Amplifiers']['max_duty_high_percent'])
+    maxDutyLow = float(STASIS_Control.STASIS_System.config_data['Amplifiers']['max_duty_low_percent'])
+    maxPulseDurationHigh = float(STASIS_Control.STASIS_System.config_data['Amplifiers']['max_pulse_high_duration_ms'])
+    maxRMSLow = float(STASIS_Control.STASIS_System.config_data['Amplifiers']['max_rms_power_low'])
+    #Get Timings:
+    samplesRx = STASIS_Control.STASIS_System.TimingControl.counter_Rx
+    samplesTx = STASIS_Control.STASIS_System.TimingControl.counter_Tx
+    clockDivider = STASIS_Control.STASIS_System.TimingControl.clock_divider
+    conMode = STASIS_Control.STASIS_System.TimingControl.con_mode
+    #Get number of channels:
+    numberOfChannels = STASIS_Control.STASIS_System.Modulator.number_of_channels
+    #Get pulse data:
+    pulseAmp=STASIS_Control.STASIS_System.Modulator.amplitudes
+    modeAmp=STASIS_Control.STASIS_System.Modulator.Amp_state
 
+    #Output Text
+    outText = '\n***WARNING***\n'
+    #Error State
+    ErrorState = FALSE
+
+    pulseLength = clockDivider/10e6 * samplesTx * 1000 #Calculate Pulse Length in ms
+    pulseDurationHigh=[0]*numberOfChannels
+
+    #Duty Cycle Calculation:
+    weightHigh = 100/maxDutyHigh
+    weightLow = 100/maxDutyLow
+    totalWeight = [0]*numberOfChannels #total dutycycle weight per channel
+    samplesHigh = [0]*numberOfChannels
+    samplesLow = [0]*numberOfChannels
+    if conMode == 1:
+        duty_cycle = 100
+    else:
+        duty_cycle = samplesTx/(samplesRx + samplesTx)
+
+    peakAmpLow=0 #Highest amplitude in "low" mode
+    peakAmpHigh=0 #Highest amplitude in "high" mode
+    for a in range(numberOfChannels):
+        
+        if isinstance(pulseAmp[a],list):
+            numberOfSamples=len(pulseAmp[a])
+
+            for b in range(numberOfSamples):
+                #Find max amplitude sorted by AmpMode:
+                if modeAmp[a][b]==0:
+                    totalWeight[a]=totalWeight[a]+(weightLow/numberOfSamples*duty_cycle)
+                    samplesLow[a]=samplesLow[a]+1
+                    if pulseAmp[a][b]>peakAmpLow:
+                        peakAmpLow=pulseAmp[a][b]
+                else:
+                    totalWeight[a]=totalWeight[a]+(weightHigh/numberOfSamples*duty_cycle)
+                    samplesHigh[a]=samplesHigh[a]+1
+                    if pulseAmp[a][b]>peakAmpHigh:
+                        peakAmpHigh=pulseAmp[a][b]
+            pulseDurationHigh[a]=pulseLength*samplesHigh[a]/numberOfSamples
+        else:
+            numberOfSamples=1
+            if modeAmp[a]==0:
+                totalWeight[a]=weightLow*duty_cycle
+                samplesLow[a]=1
+                peakAmpLow=pulseAmp[a]
+            else:
+                totalWeight[a]=weightHigh*duty_cycle
+                samplesHigh[a]=1
+                peakAmpHigh=pulseAmp[a]
+            pulseDurationHigh[a]=pulseLength*samplesHigh[a]/numberOfSamples
+    
+  
+
+    if max(pulseDurationHigh) > maxPulseDurationHigh:
+        ErrorState = TRUE
+        outText = outText + 'Pulselength High Mode too long!\n'
+
+    if max(totalWeight)>1:
+        ErrorState=TRUE
+        outText = outText + 'Duty Cycle to high!\n'
+
+    
+    
+    if peakAmpLow>maxAmpLow:
+        outText = outText + 'Too high voltage in low power mode!\n'
+        ErrorState=TRUE
+    if peakAmpHigh>maxAmpHigh:
+        outText = outText + 'Too high voltage in high power mode!\n'
+        ErrorState=TRUE
+    
+    
+
+    return [ErrorState, outText]
+
+
+
+    
 
 
 
@@ -415,9 +519,9 @@ amplitudes=[10]*8
 phases=[45/180*np.pi]*8
 amp_state=[0]*8
 for channel in range(8):
-   amplitudes[channel]=[100,100]
+   amplitudes[channel]=[20,20]
    phases[channel]=[0,45/180*np.pi]
-   amp_state[channel]=[1,1]
+   amp_state[channel]=[0,0]
 
 
 STASIS_Control.STASIS_System.Modulator.set_amplitudes_phases_state(amplitudes,phases,amp_state)
