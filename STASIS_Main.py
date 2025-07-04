@@ -441,7 +441,7 @@ def check_pulse():
     samplesHigh = [0]*numberOfChannels
     samplesLow = [0]*numberOfChannels
     if conMode == 1:
-        duty_cycle = 100
+        duty_cycle = 1
     else:
         duty_cycle = samplesTx/(samplesRx + samplesTx)
 
@@ -477,22 +477,22 @@ def check_pulse():
                 peakAmpHigh=pulseAmp[a]
             pulseDurationHigh[a]=pulseLength*samplesHigh[a]/numberOfSamples
     
-  
+    
 
     if max(pulseDurationHigh) > maxPulseDurationHigh:
         ErrorState = TRUE
         outText = outText + 'Pulselength High Mode too long!\n'
 
-    if max(totalWeight)>1:
+    if max(totalWeight)>1.001: #Allow 0.1% Error for calculation, otherwise 20% in the config file might only be 19.999% or similar.
         ErrorState=TRUE
         outText = outText + 'Duty Cycle to high!\n'
 
     
     
-    if peakAmpLow>maxAmpLow:
+    if peakAmpLow>maxAmpLow*1.001:
         outText = outText + 'Too high voltage in low power mode!\n'
         ErrorState=TRUE
-    if peakAmpHigh>maxAmpHigh:
+    if peakAmpHigh>maxAmpHigh*1.001:
         outText = outText + 'Too high voltage in high power mode!\n'
         ErrorState=TRUE
     

@@ -379,6 +379,7 @@ class ModulatorObj: #Contains all data and methods for Modulators
         "phase is a single phase in degrees.\n
         "channel" specifies for which channel this sample is. This is necessary to use the correct calibration values.\n
         "mode" specifies which state the amplifier is in.'''
+        ph=-ph #Signs need to be reversed to get the correct phase at the modulator's output
         # Order of operation for correction:
         # 0. Power factor correction
         # 1. Calculate corrected amplitude (convert from Volts to digital value with pchip)
