@@ -440,6 +440,9 @@ def check_pulse():
     totalWeight = [0]*numberOfChannels #total dutycycle weight per channel
     samplesHigh = [0]*numberOfChannels
     samplesLow = [0]*numberOfChannels
+    amplitudeLow_acc = [0]*numberOfChannels
+    rms_amp_low = [0]*numberOfChannels
+    amplitudeHigh_acc = [0]*numberOfChannels
     if conMode == 1:
         duty_cycle = 1
     else:
@@ -457,6 +460,7 @@ def check_pulse():
                 if modeAmp[a][b]==0:
                     totalWeight[a]=totalWeight[a]+(weightLow/numberOfSamples*duty_cycle)
                     samplesLow[a]=samplesLow[a]+1
+                    amplitudeLow_acc[a] = amplitudeLow_acc[a] + pow(pulseAmp[a][b],2) #accumulate pulse amplitudes.
                     if pulseAmp[a][b]>peakAmpLow:
                         peakAmpLow=pulseAmp[a][b]
                 else:
@@ -470,14 +474,20 @@ def check_pulse():
             if modeAmp[a]==0:
                 totalWeight[a]=weightLow*duty_cycle
                 samplesLow[a]=1
-                peakAmpLow=pulseAmp[a]
+                peakAmpLow=pow(pulseAmp[a],2)
+                amplitudeLow_acc=peakAmpLow
             else:
                 totalWeight[a]=weightHigh*duty_cycle
                 samplesHigh[a]=1
                 peakAmpHigh=pulseAmp[a]
             pulseDurationHigh[a]=pulseLength*samplesHigh[a]/numberOfSamples
-    
-    
+
+    for a in range(numberOfChannels):
+        rms_amp_low[a] = pow(amplitudeLow_acc[a]/samplesLow[a]*samplesLow[a]/numberOfSamples*duty_cycle,0.5) #RMS voltage for low power.
+        if rms_amp_low[a]>maxRMSLow*1.001:
+            ErrorState = TRUE
+            outText = outText + 'RMS voltage to high in low power mode!\n'
+
 
     if max(pulseDurationHigh) > maxPulseDurationHigh:
         ErrorState = TRUE
