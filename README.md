@@ -8,6 +8,8 @@ https://github.com/sOrzada/STASIS_Exposition_Hardware
 If you have any questions or remarks, please contact:
 stephan.orzada@dkfz.de
 
+# Funding: 
+This work was funded by the European Union (grant number 21NRM05 STASIS).
 
 
 
